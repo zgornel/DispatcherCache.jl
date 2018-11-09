@@ -1,0 +1,7 @@
+name = "DispatcherCache"
+uuid = "f645e724-e411-11e8-05bd-b130954e5022"
+authors = ["Corneliu Cofaru <cornel@oxoaresearch.com>"]
+version = "0.1.0"
+
+[deps]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
