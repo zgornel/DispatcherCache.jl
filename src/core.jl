@@ -34,19 +34,32 @@ function add_hashes!(dsk::DispatchGraph,
             keyhashmaps[key] = _hash_node
             skipcache = key in no_cache_keys
             # Wrap nodes
-            @show _hash_node
             if _hash_node in keys(hashchain) && !skipcache &&
                     !(_hash_node in hashes_to_store)
                 # Hash match and output cacheable
                 @info "$key: Hash match, LOAD"
+                # TODO: Wrap
+                ######################################
+                label = node.label
+                idx = dsk.nodes[node]
+                dsk.nodes[idx] = Op(()->return 100)
+                dsk.nodes[idx].label = label
+                ######################################
+                # TODO: Wrap
             elseif _hash_node in keys(hashchain) && skipcache
                 # Hash match and output *non-cachable*
                 @info "$key: Hash match, EXEC"
+                # TODO: Wrap
             else
                 # Hash miss
                 @info "$key: Hash miss, EXEC (and potentially STORE)"
                 hashchain[_hash_node] = _hash_comp
                 push!(hashes_to_store, _hash_node)
+                # Write some stuff into the file
+                # TODO: Wrap
+                open(joinpath(cachedir, "cache", _hash_node*".bin"), "w+") do fid
+                    write(fid, _hash_node)
+                end
             end
         else
             # Non-solvable node

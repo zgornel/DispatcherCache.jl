@@ -17,7 +17,7 @@ get_node(dsk::DispatchGraph, node::T) where T<:DispatchNode = node
 
 get_node(dsk::DispatchGraph, label::T) where T<:AbstractString = begin
     nodes = [node for node in get_keys(dsk, DispatchNode) if node.label==label]
-    length(nodes) != 1 && throw(ExceptionError("Labels in dispatch graph are not unique!"))
+    length(nodes) != 1 && throw(ErrorException("Labels in dispatch graph are not unique!"))
     return nodes[1]
 end
 
@@ -125,7 +125,7 @@ function load_hashchain(cachedir::String=DEFAULT_CACHE_DIR;
     local hashchain
     if !isfile(file)
         @info "Creating a new hashchain file $file..."
-        hashchain = Dict{String, String}()
+        hashchain = Dict{String, Any}()
         store_hashchain(hashchain, cachedir, compression=compression)
     else
         local data
@@ -133,19 +133,19 @@ function load_hashchain(cachedir::String=DEFAULT_CACHE_DIR;
             data = JSON.parse(read(fid, String))
         end
         if compression != data["compression"]
-            throw(ExceptionError("Compression mismatch: $compression vs. "*
+            throw(ErrorException("Compression mismatch: $compression vs. "*
                                  "$(hashchain["compression"])"))e
         end
         hashchain = data["hashchain"]
-        ### # Clean up hashchain based on what exists already on disk
-        ### # i.e. remove keys not found on disk
-        ### on_disk_hashes = map(filename->split(filename, ".")[0],
-        ###                      filter!(isfile, readdir(cachedir_outputs)))
-        ### keys_to_delete = setdiff(keys(hashchain), on_disk_hashes)
-        ### for key in keys_to_delete
-        ###     delete!(hashchain, key)
-        ### end
-        ### store_hashchain(hashchain, cachedir, compression=compression)
+        # Clean up hashchain based on what exists already on disk
+        # i.e. remove keys not found on disk
+        on_disk_hashes = map(filename->split(filename, ".")[1],
+                             filter!(!isfile, readdir(cachedir_outputs)))
+        keys_to_delete = setdiff(keys(hashchain), on_disk_hashes)
+        for key in keys_to_delete
+            delete!(hashchain, key)
+        end
+        store_hashchain(hashchain, cachedir, compression=compression)
     end
     return hashchain
 end
@@ -190,7 +190,7 @@ function get_compressor(compression::AbstractString, action::AbstractString)
         compression = DEFAULT_COMPRESSION
     end
     if !(action in ["compress", "decompress"])
-        throw(ExceptionError("The action can only be \"compress\" or \"decompress\"."))
+        throw(ErrorException("The action can only be \"compress\" or \"decompress\"."))
     end
     # Get compressor/decompressor
     if compression == "bz2" || compression == "bzip2"
