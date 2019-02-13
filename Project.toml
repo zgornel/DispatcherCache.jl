@@ -4,4 +4,10 @@ authors = ["Corneliu Cofaru <cornel@oxoaresearch.com>"]
 version = "0.1.0"
 
 [deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+Dispatcher = "a48d5fe2-965b-541b-8ad8-ab19b69f3f25"
+IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+Memento = "f28f55f0-a522-5efc-85c2-fe41dfb9b2d9"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TranscodingStreams = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"

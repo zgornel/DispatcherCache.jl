@@ -1,3 +1,10 @@
 using Test
+using DispatcherCache
+using Dispatcher
+using Memento
 
-@test true
+# Set Dispatcher logging level to warning
+setlevel!(getlogger("Dispatcher"), "warn")
+
+# Run tests
+include("core.jl")
