@@ -6,19 +6,23 @@ get_keys(dsk::DispatchGraph, ::Type{T}) where T<:AbstractString =
 
 
 get_dependencies(dsk::DispatchGraph, ::Type{T}) where T<:DispatchNode =
-    Dict(k => collect(dependencies(k)) for k in get_keys(dsk, T))
+    Dict(k => (dependencies(k)) for k in get_keys(dsk, T))
 
 get_dependencies(dsk::DispatchGraph, ::Type{T}) where T<:AbstractString =
-    Dict(k.label => collect(imap(x->x.label, dependencies(k)))
+    Dict(k.label => imap(x->x.label, dependencies(k))
          for k in get_keys(dsk, DispatchNode))
 
 
 get_node(dsk::DispatchGraph, node::T) where T<:DispatchNode = node
 
 get_node(dsk::DispatchGraph, label::T) where T<:AbstractString = begin
-    nodes = [node for node in get_keys(dsk, DispatchNode) if node.label==label]
-    length(nodes) != 1 && throw(ErrorException("Labels in dispatch graph are not unique!"))
-    return nodes[1]
+    found = Set{DispatchNode}()
+    for node in get_keys(dsk, DispatchNode)
+        node.label == label && push!(found, node)
+    end
+    length(nodes) > 1 && throw(ErrorException("Labels in dispatch graph are not unique."))
+    length(nodes) < 1 && throw(ErrorException("No nodes with label $label found."))
+    return pop!(found)
 end
 
 
@@ -42,16 +46,30 @@ function get_hash(node::DispatchNode, keyhashmaps::Dict{T,String}) where T
     return node_hash, subgraph_hash
 end
 
-get_source_hash(node::DispatchNode) = begin
+
+"""
+    get_source_hash(node)
+
+Hashes the lowered representation of the source code of the function
+associated with `node`. Useful for `Op` nodes, the other node types
+do not have any associated source code.
+"""
+get_source_hash(node::Op) = begin
     f = node.func
     code = join(code_lowered(f)[1].code, "\n")
     return __hash(code)
 end
 
-get_source_hash(node::DataNode) = __hash(nothing)
+get_source_hash(node::DispatchNode) = __hash(nothing)
 
 
-get_arguments_hash(node::DispatchNode) = begin
+"""
+    get_arguments_hash(node)
+
+Hash the data arguments (in certain cases configuration fields) of the
+dispatch `node`.
+"""
+get_arguments_hash(node::Op) = begin
     h = hash(nothing)
     arguments = (arg for arg in node.args if !(arg isa DispatchNode))
     if !isempty(arguments)
@@ -69,27 +87,39 @@ get_arguments_hash(node::DispatchNode) = begin
     return __hash(h)
 end
 
-get_arguments_hash(node::DataNode) = __hash(nothing)
+get_arguments_hash(node::DataNode) = __hash(node.data)
+
+get_arguments_hash(node::IndexNode) = __hash(node.index)
+
+get_arguments_hash(node::DispatchNode) = __hash(nothing)
 
 
+"""
+    get_dependencies_hash(node, keyhashmaps)
+
+Hash the dispatch node dependencies of `node` using their existing hashes if possible.
+"""
 get_dependencies_hash(node::DispatchNode, keyhashmaps) = begin
     h = __hash(nothing)
-    node_arguments = (arg for arg in node.args if arg isa DispatchNode)
-    regular_arguments = (arg for arg in node.args if !(arg isa DispatchNode))
-    if !isempty(regular_arguments)
-        h *= get_arguments_hash(node)
-    end
-    if isempty(node_arguments)
+    nodes = _node_deps(node)
+    if isempty(nodes)
         return __hash(h)
     else
-        for node in node_arguments
+        for node in nodes
             h *= get(keyhashmaps, node, get_dependencies_hash(node, keyhashmaps))
         end
         return __hash(h)
     end
 end
 
-get_dependencies_hash(node::DataNode, keyhashmaps) = __hash(nothing)
+# Get all node dependencies of a node
+# TODO(Corneliu): Recursively traverse iterables as well
+_node_deps(node::Op) = Base.Iterators.flatten(
+                        ((n for n in node.args if n isa DispatchNode),
+                         (v for (_,v) in node.kwargs if v isa DispatchNode)))
+_node_deps(node::IndexNode) = (n for n = node.node)  # get node field
+_node_deps(node::CollectNode) = (n for n in node.nodes)
+_node_deps(node::DispatchNode) = (n for n in ())  # DataNode, CleanupNode empty iterator
 
 
 """
