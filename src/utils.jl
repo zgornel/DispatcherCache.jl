@@ -20,8 +20,8 @@ get_node(dsk::DispatchGraph, label::T) where T<:AbstractString = begin
     for node in get_keys(dsk, DispatchNode)
         node.label == label && push!(found, node)
     end
-    length(nodes) > 1 && throw(ErrorException("Labels in dispatch graph are not unique."))
-    length(nodes) < 1 && throw(ErrorException("No nodes with label $label found."))
+    length(found) > 1 && throw(ErrorException("Labels in dispatch graph are not unique."))
+    length(found) < 1 && throw(ErrorException("No nodes with label $label found."))
     return pop!(found)
 end
 
@@ -101,7 +101,7 @@ Hash the dispatch node dependencies of `node` using their existing hashes if pos
 """
 get_dependencies_hash(node::DispatchNode, keyhashmaps) = begin
     h = __hash(nothing)
-    nodes = _node_deps(node)
+    nodes = dependencies(node)
     if isempty(nodes)
         return __hash(h)
     else
@@ -111,15 +111,6 @@ get_dependencies_hash(node::DispatchNode, keyhashmaps) = begin
         return __hash(h)
     end
 end
-
-# Get all node dependencies of a node
-# TODO(Corneliu): Recursively traverse iterables as well
-_node_deps(node::Op) = Base.Iterators.flatten(
-                        ((n for n in node.args if n isa DispatchNode),
-                         (v for (_,v) in node.kwargs if v isa DispatchNode)))
-_node_deps(node::IndexNode) = (n for n = node.node)  # get node field
-_node_deps(node::CollectNode) = (n for n in node.nodes)
-_node_deps(node::DispatchNode) = (n for n in ())  # DataNode, CleanupNode empty iterator
 
 
 """
@@ -216,19 +207,23 @@ based on the values of `compression` and `action`.
 function get_compressor(compression::AbstractString, action::AbstractString)
     # Checks
     if !(compression in ["bz2", "bzip2", "gz", "gzip", "none"])
-        @warn "Unknown compression option, defaulting to $DEFAULT_COMPRESSION."
-        compression = DEFAULT_COMPRESSION
+        throw(ErrorException("Unknown compression option,"*
+                             " aborting."))
     end
     if !(action in ["compress", "decompress"])
         throw(ErrorException("The action can only be \"compress\" or \"decompress\"."))
     end
     # Get compressor/decompressor
     if compression == "bz2" || compression == "bzip2"
-        compressor = ifelse(action == "compress", Bzip2Compressor, Bzip2Decompressor)
+        compressor = ifelse(action == "compress",
+                            Bzip2CompressorStream,
+                            Bzip2DecompressorStream)
     elseif compression == "gz" || compression == "gzip"
-        compressor = ifelse(action == "compress", GzipCompressor, GzipDecompressor)
+        compressor = ifelse(action == "compress",
+                            GzipCompressorStream,
+                            GzipDecompressorStream)
     elseif compression == "none"
-        compressor = Noop  # no compression
+        compressor = NoopStream  # no compression
     end
     return compressor
 end
