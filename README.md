@@ -1,4 +1,4 @@
-# DispatcherCache.jl
+# DispatcherCache.jl [WIP, do not use]
 
 A task persistency mechanism based on hash-graphs for [Dispatcher.jl](https://github.com/invenia/Dispatcher.jl). Based on [graphchain](https://github.com/radix-ai/graphchain).
 

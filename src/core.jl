@@ -38,25 +38,29 @@ function cache!(graph::DispatchGraph,
                 compression::String=DEFAULT_COMPRESSION,
                 cachedir::String=DEFAULT_CACHE_DIR
                ) where T<:Union{<:DispatchNode, <:AbstractString}
-    # Initializations
+    # Checks
     if isempty(endpoints)
         @warn "No enpoints for graph, will not process dispatch graph."
         return nothing
     end
+
+    # Initializations
     subgraph = Dispatcher.subgraph(
                     graph, map(n->get_node(graph, n), endpoints))
 
-    hashchain = load_hashchain(cachedir, compression=compression)
-    allkeys = get_keys(graph, T)  # all keys in the dispatch graph
-    work = Deque{T}()             # keys to be traversed
-    for key in allkeys
+    work = Deque{T}()                           # keys to be traversed
+    for key in get_keys(graph, T)
         push!(work, key)
     end
-    solved = Set()                             # keys of computable tasks
-    dependencies = get_dependencies(graph, T)
-    keyhashmaps = Dict{T, String}()            # key=>hash mapping
-    hashes_to_store = Set{String}()            # list of hashes that correspond
-                                               #   to keys whose output will be stored
+    solved = Set()                              # keys of computable tasks
+    dependencies = get_dependencies(graph, T)   # dependencies of all tasks
+    keyhashmaps = Dict{T, String}()             # key=>hash mapping
+    hashes_to_store = Set{String}()             # hashes of nodes with storable output
+    updates = Dict{DispatchNode, DispatchNode}()
+
+    # Load hashchain
+    hashchain = load_hashchain(cachedir, compression=compression)
+    # Traverse dispatch graph
     while !isempty(work)
         key = popfirst!(work)
         deps = dependencies[key]
@@ -71,12 +75,12 @@ function cache!(graph::DispatchGraph,
             if _hash_node in keys(hashchain) && !skipcache &&
                     !(_hash_node in hashes_to_store)
                 # Hash match and output cacheable
-                wrap_to_load!(graph, node, _hash_node,
+                wrap_to_load!(updates, node, _hash_node,
                               cachedir=cachedir,
                               compression=compression)
             elseif _hash_node in keys(hashchain) && skipcache
                 # Hash match and output *non-cachable*
-                wrap_to_store!(graph, node, _hash_node,
+                wrap_to_store!(updates, node, _hash_node,
                                cachedir=cachedir,
                                compression=compression,
                                skipcache=skipcache)
@@ -85,7 +89,7 @@ function cache!(graph::DispatchGraph,
                 # TODO(Corneliu) Analyze hash miss
                 hashchain[_hash_node] = _hash_comp
                 push!(hashes_to_store, _hash_node)
-                wrap_to_store!(graph, node, _hash_node,
+                wrap_to_store!(updates, node, _hash_node,
                                cachedir=cachedir,
                                compression=compression,
                                skipcache=skipcache)
@@ -94,6 +98,10 @@ function cache!(graph::DispatchGraph,
             # Non-solvable node
             push!(work, key)
         end
+    end
+    # Update graph
+    for i in 1:length(graph.nodes)
+        graph.nodes[i] = updates[graph.nodes[i]]
     end
     # Write hashchain
     store_hashchain(hashchain, cachedir, compression=compression)
