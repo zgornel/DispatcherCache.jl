@@ -86,7 +86,6 @@ function cache!(graph::DispatchGraph,
                                skipcache=skipcache)
             else
                 # Hash miss
-                # TODO(Corneliu) Analyze hash miss
                 hashchain[_hash_node] = _hash_comp
                 push!(hashes_to_store, _hash_node)
                 wrap_to_store!(updates, node, _hash_node,
@@ -105,5 +104,27 @@ function cache!(graph::DispatchGraph,
     end
     # Write hashchain
     store_hashchain(hashchain, cachedir, compression=compression)
-    return nothing
+    return updates
+end
+
+
+function runcached!(exec::Executor,
+                    graph::DispatchGraph,
+                    endpoints::Vector{T}=T[],
+                    uncacheable::Vector{T}=T[];
+                    compression::String=DEFAULT_COMPRESSION,
+                    cachedir::String=DEFAULT_CACHE_DIR
+                   ) where T<:Union{<:DispatchNode, <:AbstractString}
+    _graph = Base.deepcopy(graph)
+    nodemap = Dict(graph.nodes[i] => _graph.nodes[i] for i in 1:length(graph.nodes))
+    mapped_endpoints = [nodemap[get_node(graph, node)] for node in endpoints]
+    mapped_uncacheable = [nodemap[get_node(graph, node)] for node in uncacheable]
+    # Modify input graph
+    updates = cache!(_graph,
+                     mapped_endpoints,
+                     mapped_uncacheable,
+                     compression=compression,
+                     cachedir=cachedir)
+    # Run temporary graph
+    return run!(exec, [updates[e] for e in mapped_endpoints])
 end

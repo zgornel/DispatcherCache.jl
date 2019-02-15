@@ -1,127 +1,46 @@
-get_keys(dsk::DispatchGraph, ::Type{T}) where T<:DispatchNode =
-    keys(dsk.nodes.node_dict)
+"""
+    get_keys(graph, ::Type{T})
 
-get_keys(dsk::DispatchGraph, ::Type{T}) where T<:AbstractString =
-    imap(x->x.label, get_keys(dsk, DispatchNode))
+Returns an iterator of the nodes of the dispatch graph `graph`.
+The returned iterator generates elements of type `T`: if
+`T<:AbstractString` the iterator is over the labels of the graph,
+if `T<:DispatchNode` the iterator is over the nodes of the graph.
+"""
+get_keys(graph::DispatchGraph, ::Type{T}) where T<:DispatchNode =
+    keys(graph.nodes.node_dict)
 
+get_keys(graph::DispatchGraph, ::Type{T}) where T<:AbstractString =
+    imap(x->x.label, get_keys(graph, DispatchNode))
 
-get_dependencies(dsk::DispatchGraph, ::Type{T}) where T<:DispatchNode =
-    Dict(k => (dependencies(k)) for k in get_keys(dsk, T))
+"""
+    get_dependencies(graph, ::Type{T})
 
-get_dependencies(dsk::DispatchGraph, ::Type{T}) where T<:AbstractString =
+Returns a dictionary where the keys are, depending on `T`, the node labels
+or nodes of `graph::DsipatchGraph` and vthe alues are iterators over either
+the node labels or nodes corresponding to the depencies of the key node.
+"""
+get_dependencies(graph::DispatchGraph, ::Type{T}) where T<:DispatchNode =
+    Dict(k => (dependencies(k)) for k in get_keys(graph, T))
+
+get_dependencies(graph::DispatchGraph, ::Type{T}) where T<:AbstractString =
     Dict(k.label => imap(x->x.label, dependencies(k))
-         for k in get_keys(dsk, DispatchNode))
+         for k in get_keys(graph, DispatchNode))
 
+"""
+    get_node(graph, label)
 
-get_node(dsk::DispatchGraph, node::T) where T<:DispatchNode = node
+Returns the node corresponding to `label`.
+"""
+get_node(graph::DispatchGraph, node::T) where T<:DispatchNode = node
 
-get_node(dsk::DispatchGraph, label::T) where T<:AbstractString = begin
+get_node(graph::DispatchGraph, label::T) where T<:AbstractString = begin
     found = Set{DispatchNode}()
-    for node in get_keys(dsk, DispatchNode)
+    for node in get_keys(graph, DispatchNode)
         node.label == label && push!(found, node)
     end
     length(found) > 1 && throw(ErrorException("Labels in dispatch graph are not unique."))
     length(found) < 1 && throw(ErrorException("No nodes with label $label found."))
     return pop!(found)
-end
-
-
-"""
-    get_hash(node, keyhashmaps)
-
-Calculates and returns the hash corresponding to a `Dispatcher` task graph
-node i.e. `DispatchNode` using the hashes of its dependencies, input arguments
-and source code of the function associated to the `node`. Any available hashes
-are taken from `keyhashmap`.
-"""
-function get_hash(node::DispatchNode, keyhashmaps::Dict{T,String}) where T
-    hash_code = get_source_hash(node)
-    hash_arguments = get_arguments_hash(node)
-    hash_dependencies = get_dependencies_hash(node, keyhashmaps)
-
-    node_hash = __hash(join(hash_code, hash_arguments, hash_dependencies))
-    subgraph_hash = Dict("code" => hash_code,
-                         "args" => hash_arguments,
-                         "deps" => hash_dependencies)
-    return node_hash, subgraph_hash
-end
-
-
-"""
-    get_source_hash(node)
-
-Hashes the lowered representation of the source code of the function
-associated with `node`. Useful for `Op` nodes, the other node types
-do not have any associated source code.
-"""
-get_source_hash(node::Op) = begin
-    f = node.func
-    code = join(code_lowered(f)[1].code, "\n")
-    return __hash(code)
-end
-
-get_source_hash(node::DispatchNode) = __hash(nothing)
-
-
-"""
-    get_arguments_hash(node)
-
-Hash the data arguments (in certain cases configuration fields) of the
-dispatch `node`.
-"""
-get_arguments_hash(node::Op) = begin
-    h = hash(nothing)
-    arguments = (arg for arg in node.args if !(arg isa DispatchNode))
-    if !isempty(arguments)
-        h += mapreduce(+, arguments) do x
-                hash(x) + hash(typeof(x))
-            end
-    end
-    kwarguments = ((k,v) for (k,v) in node.kwargs if !(v isa DispatchNode))
-    if !isempty(kwarguments)
-        h += mapreduce(+, kwarguments) do x
-                k, v = x
-                hash(k) + hash(v) + hash(typeof(v))
-            end
-    end
-    return __hash(h)
-end
-
-get_arguments_hash(node::DataNode) = __hash(node.data)
-
-get_arguments_hash(node::IndexNode) = __hash(node.index)
-
-get_arguments_hash(node::DispatchNode) = __hash(nothing)
-
-
-"""
-    get_dependencies_hash(node, keyhashmaps)
-
-Hash the dispatch node dependencies of `node` using their existing hashes if possible.
-"""
-get_dependencies_hash(node::DispatchNode, keyhashmaps) = begin
-    h = __hash(nothing)
-    nodes = dependencies(node)
-    if isempty(nodes)
-        return __hash(h)
-    else
-        for node in nodes
-            h *= get(keyhashmaps, node, get_dependencies_hash(node, keyhashmaps))
-        end
-        return __hash(h)
-    end
-end
-
-
-"""
-    __hash(something)
-
-Return a hexadecimal string corresponding to the hash of sum
-of the hashes of the value and type of `something`.
-"""
-function __hash(something)
-    h = hash(hash(typeof(something)) + hash(something))
-    return string(h, base=16)
 end
 
 
@@ -230,11 +149,11 @@ end
 
 
 """
-    input_nodes(graph::DispatchGraph) ->
+    root_nodes(graph::DispatchGraph) ->
 
 Return an iterable of all nodes in the graph with no input edges.
 """
-function input_nodes(graph::DispatchGraph)
+function root_nodes(graph::DispatchGraph)
     imap(n->graph.nodes[n], filter(1:nv(graph.graph)) do node_index
         indegree(graph.graph, node_index) == 0
     end)

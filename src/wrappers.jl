@@ -1,11 +1,11 @@
-###"""
-###    wrap_to_load!(graph, node, nodehash; cachedir=DEFAULT_CACHE_DIR, compression=DEFAULT_COMPRESSION)
-###
-###Wraps the callable field `func` of `node::DispatchNode` to load a file from
-###the `cachedir` cache directory whose name and extension depend on `nodehash`
-###and `compression`. It updates only occurences of the `node` in the `graph` and
-###not in the individual dependencies of the nodes.
-###"""
+"""
+    wrap_to_load!(updates, node, nodehash; cachedir=DEFAULT_CACHE_DIR, compression=DEFAULT_COMPRESSION)
+
+Generates a new dispatch node that corresponds to `node::DispatchNode`
+and which loads a file from the `cachedir` cache directory whose name and extension
+depend on `nodehash` and `compression` and contents are the output of `node`.
+The generated node is added to `updates` which maps `node` to the generated node.
+"""
 function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
                        node::DispatchNode,
                        nodehash::String;
@@ -27,9 +27,13 @@ function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
         filepath = joinpath(_cachedir, nodehash * extension)
         decompressor = get_compressor(compression, "decompress")
         @info "[$nodehash][$(node.label)] $operation (compression=$compression)"
-        result = open(decompressor, filepath, "r") do fid
-                    deserialize(fid)
-                 end
+        if isfile(filepath)
+            result = open(decompressor, filepath, "r") do fid
+                        deserialize(fid)
+                    end
+        else
+            throw(ErrorException("Cache file $filepath is missing."))
+        end
         return result
     end
 
@@ -41,13 +45,14 @@ function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
 end
 
 
-###"""
-###    wrap_to_store!(graph, node, nodehash; compression=DEFAULT_COMPRESSION)
-###
-###Wraps the callable field `func` of `node::DispatchNode` to load a file whose name
-###and extension depend on `nodehash` and `compression`. It updates all
-###occurences of the `node` in the `graph`
-###"""
+"""
+    wrap_to_store!(graph, node, nodehash; compression=DEFAULT_COMPRESSION)
+
+Generates a new dispatch node that corresponds to `node::DispatchNode`
+and which stores the output of the execution of `node` in a file whose
+name and extension depend on `nodehash` and `compression`. The generated
+node is added to `updates` which maps `node` to the generated node.
+"""
 function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
                         node::DispatchNode,
                         nodehash::String;
@@ -70,9 +75,11 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
         extension = ifelse(compression != "none", ".$compression", ".bin")
         filepath = joinpath(_cachedir, nodehash * extension)
         compressor = get_compressor(compression, "compress")
+
         # Get calculation result
         # TODO(Corneliu) handle other types of DispatchNode
         result = node.func(args...; kwargs...)
+
         # Store result
         @info "[$nodehash][$(node.label)] $operation (compression=$compression)"
         if !skipcache

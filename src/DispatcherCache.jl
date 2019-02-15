@@ -24,11 +24,13 @@ module DispatcherCache
     using CodecBzip2
     using CodecZlib
 
-    export cache!
+    export runcached!,
+           cache!
 
     include("constants.jl")
     include("utils.jl")
     include("wrappers.jl")
+    include("hash.jl")
     include("core.jl")
 
 end # module
