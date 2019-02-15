@@ -26,7 +26,7 @@ function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
         end
         filepath = joinpath(_cachedir, nodehash * extension)
         decompressor = get_compressor(compression, "decompress")
-        @info "[$nodehash][$(node.label)] $operation (compression=$compression)"
+        @debug "[$nodehash][$(node.label)] $operation (compression=$compression)"
         if isfile(filepath)
             result = open(decompressor, filepath, "r") do fid
                         deserialize(fid)
@@ -81,14 +81,14 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
         result = node.func(args...; kwargs...)
 
         # Store result
-        @info "[$nodehash][$(node.label)] $operation (compression=$compression)"
+        @debug "[$nodehash][$(node.label)] $operation (compression=$compression)"
         if !skipcache
             if !isfile(filepath)
                 open(compressor, filepath, "w") do fid
                     serialize(fid, result)
                 end
             else
-                @info "`-->[$nodehash][$(node.label)] * SKIPPING $operation"
+                @debug "`-->[$nodehash][$(node.label)] * SKIPPING $operation"
             end
         end
         return result

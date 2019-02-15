@@ -1,6 +1,6 @@
-# DispatcherCache.jl [WIP, do not use]
+# DispatcherCache.jl
 
-A task persistency mechanism based on hash-graphs for [Dispatcher.jl](https://github.com/invenia/Dispatcher.jl). Based on [graphchain](https://github.com/radix-ai/graphchain).
+A task persistency mechanism based on hash-graphs for [Dispatcher.jl](https://github.com/invenia/Dispatcher.jl). Based on [graphchain](https://github.com/radix-ai/graphchain), [(commit baa1c3f)](https://github.com/radix-ai/graphchain/tree/baa1c3fa94da86bd6e495c64fe63c12b36d50a1a).
 
 [![License](http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat)](LICENSE.md)
 [![Build Status](https://travis-ci.org/zgornel/DispatcherCache.jl.svg?branch=master)](https://travis-ci.org/zgornel/DispatcherCache.jl)
@@ -16,6 +16,60 @@ git clone "https://zgornel.github.com/DispatcherCache.jl"
 or, from inside Julia,
 ```
 ] add https://zgornel.github.com/DispatcherCache.jl#master
+```
+
+
+## Minimal example
+```julia
+julia> using Dispatcher
+       using DispatcherCache
+
+       # Some functions
+       foo(x) = begin sleep(1); x end
+       bar(x) = begin sleep(1); x+1 end
+       baz(x,y) = begin sleep(1); x-y end
+
+       # Make a dispatch graph out of some operations
+       op1 = @op foo(1)
+       op2 = @op bar(2)
+       op3 = @op baz(op1, op2)
+       D = DispatchGraph(op3)
+# DispatchGraph({3, 2} directed simple Int64 graph,
+# NodeSet(DispatchNode[
+# Op(DeferredFuture at (1,1,241),baz,"baz"),
+# Op(DeferredFuture at (1,1,239),foo,"foo"),
+# Op(DeferredFuture at (1,1,240),bar,"bar")]))
+
+julia> # First run, writes results to disk (lasts 2 seconds)
+       result_node = [op3]  # the node for which we want results
+       cachedir = "./__cache__"  # directory does not exist
+       @time r = run!(AsyncExecutor(), D, result_node, cachedir=cachedir)
+       println("result (first run) = \$(fetch(r[1].result.value))")
+# [info | Dispatcher]: Executing 3 graph nodes.
+# [info | Dispatcher]: Node 1 (Op<baz, Op<foo>, Op<bar>>): running.
+# [info | Dispatcher]: Node 2 (Op<foo, Int64>): running.
+# [info | Dispatcher]: Node 3 (Op<bar, Int64>): running.
+# [info | Dispatcher]: Node 2 (Op<foo, Int64>): complete.
+# [info | Dispatcher]: Node 3 (Op<bar, Int64>): complete.
+# [info | Dispatcher]: Node 1 (Op<baz, Op<foo>, Op<bar>>): complete.
+# [info | Dispatcher]: All 3 nodes executed.
+#   2.029992 seconds (11.53 k allocations: 1.534 MiB)
+# result (first run) = -2
+
+julia> # Secod run, loads directly the result from ./__cachedir__
+       @time r = run!(AsyncExecutor(), D, [op3], cachedir=cachedir)
+       println("result (second run) = \$(fetch(r[1].result.value))")
+# [info | Dispatcher]: Executing 1 graph nodes.
+# [info | Dispatcher]: Node 1 (Op<baz>): running.
+# [info | Dispatcher]: Node 1 (Op<baz>): complete.
+# [info | Dispatcher]: All 1 nodes executed.
+#   0.005257 seconds (2.57 k allocations: 478.359 KiB)
+# result (second run) = -2
+
+julia> readdir(cachedir)
+# 2-element Array{String,1}:
+#  "cache"
+#  "hashchain.json"
 ```
 
 

@@ -58,13 +58,13 @@ function load_hashchain(cachedir::String=DEFAULT_CACHE_DIR;
     file = joinpath(cachedir, DEFAULT_HASHCHAIN_FILENAME)
     cachedir_outputs = joinpath(cachedir, DEFAULT_HASHCACHE_DIR)
     if !ispath(cachedir_outputs)
-        @info "Creating the cache directory..."
+        @debug "Creating the cache directory..."
         mkpath(cachedir_outputs)
     end
 
     local hashchain
     if !isfile(file)
-        @info "Creating a new hashchain file $file..."
+        @debug "Creating a new hashchain file $file..."
         hashchain = Dict{String, Any}()
         store_hashchain(hashchain, cachedir, compression=compression)
     else
@@ -104,7 +104,7 @@ function store_hashchain(hashchain::Dict{String, Any},
                          version::Int=1)
     cachedir = abspath(cachedir)
     if !ispath(cachedir)
-        @info "Creating the cache directory..."
+        @debug "Creating the cache directory..."
         mkpath(cachedir)
     end
     file = joinpath(cachedir, DEFAULT_HASHCHAIN_FILENAME)

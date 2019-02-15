@@ -1,7 +1,7 @@
 using Test
-using DispatcherCache
 using Dispatcher
 using Memento
+using DispatcherCache
 
 # Set Dispatcher logging level to warning
 setlevel!(getlogger("Dispatcher"), "warn")

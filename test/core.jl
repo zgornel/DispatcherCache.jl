@@ -1,3 +1,8 @@
+# Useful constants
+const regex_exec_store = r"getfield\(DispatcherCache, Symbol\(\"#exec_store_wrapper#[0-9]+\"\)\)"
+const regex_load = r"getfield\(DispatcherCache, Symbol\(\"#loading_wrapper#[0-9]+\"\)\)"
+
+
 raw"""
 Generates a Dispatcher task graph of the form below,
 which will be used as a basis for the functional
@@ -18,7 +23,7 @@ testing of the module:
       |         |        |     |           |
       v1       v2       v3    v4          v5
 """
-function dg_generator()
+function example_of_dispatch_graph()
     # Functions
     foo(argument) = argument
     bar(argument) = argument + 2
@@ -45,18 +50,19 @@ function dg_generator()
     baz2 = @op baz(boo1, goo1); set_label!(baz2, "baz2")
     top1 = @op top(d1, baz2); set_label!(top1, "top1")
 
-    dsk = DispatchGraph(top1)
-    return dsk
+    graph = DispatchGraph(top1)
+    return graph
 end
 
-function get_indexed_result_value(dsk, idx; executor=AsyncExecutor())
-    _result = run!(executor, dsk)
+
+function get_indexed_result_value(graph, idx; executor=AsyncExecutor())
+    _result = run!(executor, graph)
     idx > 0 && idx <= length(_result) && return fetch(_result[idx].result.value)
     return nothing
 end
 
-function get_labeled_result_value(dsk, label; executor=AsyncExecutor())
-    _result = run!(executor, dsk)
+function get_labeled_result_value(graph, label; executor=AsyncExecutor())
+    _result = run!(executor, graph)
     for r in _result
         rlabel = r.result.value.label
         rval = r.result.value
@@ -65,11 +71,14 @@ function get_labeled_result_value(dsk, label; executor=AsyncExecutor())
     return nothing
 end
 
+
 @testset "DAG Generation" begin
-    dsk = dg_generator()
-    @test dsk isa DispatchGraph
-    @test get_indexed_result_value(dsk, 1) == -14
-    @test get_labeled_result_value(dsk, "top1") == -14
+    graph = example_of_dispatch_graph()
+    @test graph isa DispatchGraph
+    @test get_indexed_result_value(graph, 1) == -14
+    @test get_labeled_result_value(graph, "top1") == -14
 end
 
-@testset "First run" begin end
+@testset "First run" begin
+
+end

@@ -24,8 +24,7 @@ module DispatcherCache
     using CodecBzip2
     using CodecZlib
 
-    export runcached!,
-           cache!
+    import Dispatcher: run!
 
     include("constants.jl")
     include("utils.jl")
