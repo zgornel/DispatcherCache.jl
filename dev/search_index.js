@@ -49,7 +49,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.cache!-Union{Tuple{DispatchGraph}, Tuple{T}, Tuple{DispatchGraph,Array{T,1}}, Tuple{DispatchGraph,Array{T,1},Array{T,1}}} where T<:(Union{#s114, #s115} where #s115<:AbstractString where #s114<:Dispatcher.DispatchNode)",
+    "location": "api/#DispatcherCache.cache!-Union{Tuple{DispatchGraph}, Tuple{T}, Tuple{DispatchGraph,Array{T,1}}, Tuple{DispatchGraph,Array{T,1},Array{T,1}}} where T<:(Union{#s115, #s116} where #s116<:AbstractString where #s115<:Dispatcher.DispatchNode)",
     "page": "API Reference",
     "title": "DispatcherCache.cache!",
     "category": "method",
