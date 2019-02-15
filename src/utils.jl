@@ -155,7 +155,7 @@ function load_hashchain(cachedir::String=DEFAULT_CACHE_DIR;
         end
         if compression != data["compression"]
             throw(ErrorException("Compression mismatch: $compression vs. "*
-                                 "$(hashchain["compression"])"))e
+                                 "$(data["compression"])"))
         end
         hashchain = data["hashchain"]
         # Clean up hashchain based on what exists already on disk

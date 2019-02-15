@@ -33,6 +33,7 @@ function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
         return result
     end
 
+    # Add wrapped node to updates (no arguments to update :)
     newnode = Op(loading_wrapper)
     newnode.label = node.label
     push!(updates, node => newnode)
@@ -86,17 +87,20 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
         return result
     end
 
-    # Update all nodes in the graph
+    # Update arguments and keyword arguments of node using the updates;
+    # the latter should contain at this point only solved nodes (so the
+    # dependencies of the current node should be good.
     newnode = Op(exec_store_wrapper)
     newnode.label = node.label
     newnode.args = map(node.args) do arg
-        if arg isa DispatchNode
-            get(updates, arg, arg)
-        else
-            arg
-        end
+        ifelse(arg isa DispatchNode, get(updates, arg, arg), arg)
     end
-    newnode.kwargs = pairs(NamedTuple())  #TODO Fix this
+    newnode.kwargs = pairs(
+        NamedTuple{(node.kwargs.itr...,)}(
+            ((map(node.kwargs.data) do kwarg
+                 ifelse(kwarg isa DispatchNode, get(updates, kwarg, kwarg), kwarg)
+             end)...,)))
+    # Add wrapped node to updates
     push!(updates, node=>newnode)
     return nothing
 end
