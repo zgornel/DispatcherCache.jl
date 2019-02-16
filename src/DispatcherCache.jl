@@ -16,7 +16,6 @@ both persistency and computational demands.
 module DispatcherCache
 
     using Serialization
-    using DataStructures
     using Dispatcher
     using IterTools
     using JSON

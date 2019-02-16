@@ -53,6 +53,7 @@ and which stores the output of the execution of `node` in a file whose
 name and extension depend on `nodehash` and `compression`. The generated
 node is added to `updates` which maps `node` to the generated node.
 """
+# TODO(Corneliu) handle other types of DispatchNode
 function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
                         node::DispatchNode,
                         nodehash::String;
@@ -77,7 +78,6 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
         compressor = get_compressor(compression, "compress")
 
         # Get calculation result
-        # TODO(Corneliu) handle other types of DispatchNode
         result = node.func(args...; kwargs...)
 
         # Store result

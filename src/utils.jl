@@ -12,6 +12,7 @@ get_keys(graph::DispatchGraph, ::Type{T}) where T<:DispatchNode =
 get_keys(graph::DispatchGraph, ::Type{T}) where T<:AbstractString =
     imap(x->x.label, get_keys(graph, DispatchNode))
 
+
 """
     get_dependencies(graph, ::Type{T})
 
@@ -25,6 +26,7 @@ get_dependencies(graph::DispatchGraph, ::Type{T}) where T<:DispatchNode =
 get_dependencies(graph::DispatchGraph, ::Type{T}) where T<:AbstractString =
     Dict(k.label => imap(x->x.label, dependencies(k))
          for k in get_keys(graph, DispatchNode))
+
 
 """
     get_node(graph, label)

@@ -3,6 +3,24 @@ const regex_exec_store = r"getfield\(DispatcherCache, Symbol\(\"#exec_store_wrap
 const regex_load = r"getfield\(DispatcherCache, Symbol\(\"#loading_wrapper#[0-9]+\"\)\)"
 
 
+# Useful functions
+function get_indexed_result_value(graph, idx; executor=AsyncExecutor())
+    _result = run!(executor, graph)
+    idx > 0 && idx <= length(_result) && return fetch(_result[idx].result.value)
+    return nothing
+end
+
+function get_labeled_result_value(graph, label; executor=AsyncExecutor())
+    _result = run!(executor, graph)
+    for r in _result
+        rlabel = r.result.value.label
+        rval = r.result.value
+        rlabel == label && return fetch(rval)
+    end
+    return nothing
+end
+
+
 raw"""
 Generates a Dispatcher task graph of the form below,
 which will be used as a basis for the functional
@@ -55,29 +73,13 @@ function example_of_dispatch_graph()
 end
 
 
-function get_indexed_result_value(graph, idx; executor=AsyncExecutor())
-    _result = run!(executor, graph)
-    idx > 0 && idx <= length(_result) && return fetch(_result[idx].result.value)
-    return nothing
-end
-
-function get_labeled_result_value(graph, label; executor=AsyncExecutor())
-    _result = run!(executor, graph)
-    for r in _result
-        rlabel = r.result.value.label
-        rval = r.result.value
-        rlabel == label && return fetch(rval)
-    end
-    return nothing
-end
-
-
 @testset "DAG Generation" begin
     graph = example_of_dispatch_graph()
     @test graph isa DispatchGraph
     @test get_indexed_result_value(graph, 1) == -14
     @test get_labeled_result_value(graph, "top1") == -14
 end
+
 
 @testset "First run" begin
 

@@ -1,5 +1,5 @@
 """
-    cache!(graph, endpoints, uncacheable, compression=DEFAULT_COMPRESSION, cachedir=DEFAULT_CACHE_DIR)
+    add_hash_cache!(graph, endpoints, uncacheable, compression=DEFAULT_COMPRESSION, cachedir=DEFAULT_CACHE_DIR)
 
 Optimizes a delayed execution graph `graph::DispatchGraph`
 by wrapping individual nodes in load-from-disk on execute-and-store
@@ -30,15 +30,15 @@ for BZIP compression and `"gz"` or `"gzip"` for GZIP compression
 
 Note: This function should be used with care as it modifies the input
       dispatch graph. One way to handle this is to make a function that
-      generates the dispatch graph and calling `cache!` each time on
+      generates the dispatch graph and calling `add_hash_cache!` each time on
       the distict, functionally identical graphs.
 """
-function cache!(graph::DispatchGraph,
-                endpoints::Vector{T}=T[],
-                uncacheable::Vector{T}=T[];
-                compression::String=DEFAULT_COMPRESSION,
-                cachedir::String=DEFAULT_CACHE_DIR
-               ) where T<:Union{<:DispatchNode, <:AbstractString}
+function add_hash_cache!(graph::DispatchGraph,
+                         endpoints::Vector{T}=T[],
+                         uncacheable::Vector{T}=T[];
+                         compression::String=DEFAULT_COMPRESSION,
+                         cachedir::String=DEFAULT_CACHE_DIR
+                        ) where T<:Union{<:DispatchNode, <:AbstractString}
     # Checks
     if isempty(endpoints)
         @warn "No enpoints for graph, will not process dispatch graph."
@@ -49,14 +49,11 @@ function cache!(graph::DispatchGraph,
     subgraph = Dispatcher.subgraph(
                     graph, map(n->get_node(graph, n), endpoints))
 
-    work = Deque{T}()                           # keys to be traversed
-    for key in get_keys(graph, T)
-        push!(work, key)
-    end
-    solved = Set()                              # keys of computable tasks
+    work = collect(T, get_keys(graph, T))       # keys to be traversed
+    solved = Set{T}()                           # keys of computable tasks
     dependencies = get_dependencies(graph, T)   # dependencies of all tasks
-    keyhashmaps = Dict{T, String}()             # key=>hash mapping
-    hashes_to_store = Set{String}()             # hashes of nodes with storable output
+    key2hash = Dict{T, String}()                # key=>hash mapping
+    storable = Set{String}()                    # hashes of nodes with storable output
     updates = Dict{DispatchNode, DispatchNode}()
 
     # Load hashchain
@@ -69,12 +66,12 @@ function cache!(graph::DispatchGraph,
             # Node is solvable
             push!(solved, key)
             node = get_node(graph, key)          # The node is always a DispatchNode
-            _hash_node, _hash_comp = get_hash(node, keyhashmaps)
-            keyhashmaps[key] = _hash_node
+            _hash_node, _hash_comp = node_hash(node, key2hash)
+            key2hash[key] = _hash_node
             skipcache = key in uncacheable || !(node in subgraph.nodes)
             # Wrap nodes
             if _hash_node in keys(hashchain) && !skipcache &&
-                    !(_hash_node in hashes_to_store)
+                    !(_hash_node in storable)
                 # Hash match and output cacheable
                 wrap_to_load!(updates, node, _hash_node,
                               cachedir=cachedir,
@@ -88,7 +85,7 @@ function cache!(graph::DispatchGraph,
             else
                 # Hash miss
                 hashchain[_hash_node] = _hash_comp
-                push!(hashes_to_store, _hash_node)
+                push!(storable, _hash_node)
                 wrap_to_store!(updates, node, _hash_node,
                                cachedir=cachedir,
                                compression=compression,
@@ -134,7 +131,7 @@ for BZIP compression and `"gz"` or `"gzip"` for GZIP compression
   * `cachedir::String` The cache directory.
 
 # Examples
-```julia
+```
 julia> using Dispatcher
        using DispatcherCache
 
@@ -171,7 +168,7 @@ julia> # First run, writes results to disk (lasts 2 seconds)
   2.029992 seconds (11.53 k allocations: 1.534 MiB)
 result (first run) = -2
 
-julia> # Secod run, loads directly the result from ./__cachedir__
+julia> # Secod run, loads directly the result from ./__cache__
        @time r = run!(AsyncExecutor(), D,
                       [op3], cachedir=cachedir)
        println("result (second run) = \$(fetch(r[1].result.value))")
@@ -197,18 +194,21 @@ function run!(exec::Executor,
              ) where T<:Union{<:DispatchNode, <:AbstractString}
     # Make a copy of the input graph that will be modified
     # and mappings from the original nodes to the copies
-    _graph = Base.deepcopy(graph)
-    nodemap = Dict(graph.nodes[i] => _graph.nodes[i] for i in 1:length(graph.nodes))
+    tmp_graph = Base.deepcopy(graph)
+    node2tmpnode = Dict(graph.nodes[i] => tmp_graph.nodes[i]
+                        for i in 1:length(graph.nodes))
     # Construct the endpoints and uncachable node lists
     # for the copied dispatch graph
-    mapped_endpoints = [nodemap[get_node(graph, node)] for node in endpoints]
-    mapped_uncacheable = [nodemap[get_node(graph, node)] for node in uncacheable]
+    tmp_endpoints = [node2tmpnode[get_node(graph, node)]
+                     for node in endpoints]
+    tmp_uncacheable = [node2tmpnode[get_node(graph, node)]
+                       for node in uncacheable]
     # Modify input graph
-    updates = cache!(_graph,
-                     mapped_endpoints,
-                     mapped_uncacheable,
-                     compression=compression,
-                     cachedir=cachedir)
+    updates = add_hash_cache!(tmp_graph,
+                              tmp_endpoints,
+                              tmp_uncacheable,
+                              compression=compression,
+                              cachedir=cachedir)
     # Run temporary graph
-    return run!(exec, [updates[e] for e in mapped_endpoints])
+    return run!(exec, [updates[e] for e in tmp_endpoints])
 end

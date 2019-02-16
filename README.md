@@ -56,7 +56,7 @@ julia> # First run, writes results to disk (lasts 2 seconds)
 #   2.029992 seconds (11.53 k allocations: 1.534 MiB)
 # result (first run) = -2
 
-julia> # Secod run, loads directly the result from ./__cachedir__
+julia> # Secod run, loads directly the result from ./__cache__
        @time r = run!(AsyncExecutor(), D, [op3], cachedir=cachedir)
        println("result (second run) = \$(fetch(r[1].result.value))")
 # [info | Dispatcher]: Executing 1 graph nodes.

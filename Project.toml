@@ -6,7 +6,6 @@ version = "0.1.0"
 [deps]
 CodecBzip2 = "523fee87-0ab8-5b00-afb7-3ecf72e48cfd"
 CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
-DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Dispatcher = "a48d5fe2-965b-541b-8ad8-ab19b69f3f25"
 IterTools = "c8e1da08-722c-5040-9ed9-7db0dc04731e"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"

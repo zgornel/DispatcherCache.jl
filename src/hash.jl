@@ -1,15 +1,15 @@
 """
-    get_hash(node, keyhashmaps)
+    node_hash(node, key2hash)
 
 Calculates and returns the hash corresponding to a `Dispatcher` task graph
 node i.e. `DispatchNode` using the hashes of its dependencies, input arguments
 and source code of the function associated to the `node`. Any available hashes
-are taken from `keyhashmap`.
+are taken from `key2hash`.
 """
-function get_hash(node::DispatchNode, keyhashmaps::Dict{T,String}) where T
-    hash_code = get_source_hash(node)
-    hash_arguments = get_arguments_hash(node)
-    hash_dependencies = get_dependencies_hash(node, keyhashmaps)
+function node_hash(node::DispatchNode, key2hash::Dict{T,String}) where T
+    hash_code = source_hash(node)
+    hash_arguments = arg_hash(node)
+    hash_dependencies = dep_hash(node, key2hash)
 
     node_hash = __hash(join(hash_code, hash_arguments, hash_dependencies))
     subgraph_hash = Dict("code" => hash_code,
@@ -20,28 +20,28 @@ end
 
 
 """
-    get_source_hash(node)
+    source_hash(node)
 
 Hashes the lowered representation of the source code of the function
 associated with `node`. Useful for `Op` nodes, the other node types
 do not have any associated source code.
 """
-get_source_hash(node::Op) = begin
+source_hash(node::Op) = begin
     f = node.func
     code = join(code_lowered(f)[1].code, "\n")
     return __hash(code)
 end
 
-get_source_hash(node::DispatchNode) = __hash(nothing)
+source_hash(node::DispatchNode) = __hash(nothing)
 
 
 """
-    get_arguments_hash(node)
+    arg_hash(node)
 
 Hash the data arguments (in certain cases configuration fields) of the
 dispatch `node`.
 """
-get_arguments_hash(node::Op) = begin
+arg_hash(node::Op) = begin
     h = hash(nothing)
     arguments = (arg for arg in node.args if !(arg isa DispatchNode))
     if !isempty(arguments)
@@ -59,26 +59,26 @@ get_arguments_hash(node::Op) = begin
     return __hash(h)
 end
 
-get_arguments_hash(node::DataNode) = __hash(node.data)
+arg_hash(node::DataNode) = __hash(node.data)
 
-get_arguments_hash(node::IndexNode) = __hash(node.index)
+arg_hash(node::IndexNode) = __hash(node.index)
 
-get_arguments_hash(node::DispatchNode) = __hash(nothing)
+arg_hash(node::DispatchNode) = __hash(nothing)
 
 
 """
-    get_dependencies_hash(node, keyhashmaps)
+    dep_hash(node, key2hash)
 
 Hash the dispatch node dependencies of `node` using their existing hashes if possible.
 """
-get_dependencies_hash(node::DispatchNode, keyhashmaps) = begin
+dep_hash(node::DispatchNode, key2hash) = begin
     h = __hash(nothing)
     nodes = dependencies(node)
     if isempty(nodes)
         return __hash(h)
     else
         for node in nodes
-            h *= get(keyhashmaps, node, get_dependencies_hash(node, keyhashmaps))
+            h *= get(key2hash, node, dep_hash(node, key2hash))
         end
         return __hash(h)
     end
