@@ -21,10 +21,10 @@ julia&gt; result = run!(AsyncExecutor(), G, [op3]);
 
 julia&gt; println(&quot;result (normal run) = $(extract(result))&quot;)
 result (normal run) = -2</code></pre><p>At this point, the <code>run!</code> method use is the one provided by <code>Dispatcher</code> and no caching occurred. Using the <code>DispatcherCache</code> <code>run!</code> method will cache all intermediary node outputs</p><pre><code class="language-julia-repl">julia&gt; cachedir = mktempdir()  # cache temporary directory
-&quot;/tmp/tmpiLN3ph&quot;
+&quot;/tmp/tmpH8NWZE&quot;
 
 julia&gt; @time result = run!(AsyncExecutor(), G, [op3], cachedir=cachedir);
-  5.049207 seconds (17.88 k allocations: 1.962 MiB)
+  5.048280 seconds (17.88 k allocations: 1.962 MiB)
 
 julia&gt; println(&quot;result (caching run) = $(extract(result))&quot;)
 result (caching run) = -2</code></pre><p>After the first <em>cached</em> run, one can verify that the cache related files exist on disk</p><pre><code class="language-julia-repl">julia&gt; readdir(cachedir)
@@ -37,7 +37,7 @@ julia&gt; readdir(joinpath(cachedir, &quot;cache&quot;))
  &quot;86141b1a6a4dd4ab.bin&quot;
  &quot;8b7bfeeac5ee1b8d.bin&quot;
  &quot;d12ba889c23ef4c7.bin&quot;</code></pre><p>Running the computation a second time will result in loading the last - cached - result, operation noticeable through the fact that the time needed decreased. </p><pre><code class="language-julia-repl">julia&gt; @time result = run!(AsyncExecutor(), G, [op3], cachedir=cachedir);
-  1.575826 seconds (2.41 M allocations: 120.305 MiB, 12.32% gc time)
+  1.481131 seconds (2.41 M allocations: 120.305 MiB, 12.65% gc time)
 
 julia&gt; println(&quot;result (cached run) = $(extract(result))&quot;)
 result (cached run) = -2</code></pre><p>The cache can be cleaned up by simply removing the cache directory.</p><pre><code class="language-julia-repl">julia&gt; rm(cachedir, recursive=true, force=true)</code></pre><p>If the cache does not exist anymore, a new call of <code>run!(::Executor, G, [op3], cachedir=cachedir)</code> will re-create the cache by running each node.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>In the examples above, the functions <code>foo</code>, <code>bar</code> and <code>baz</code> use the <code>sleep</code> function to simulate longer running computations. This is useful to both illustrate the concept presented and to overcome the pre-compilation overhead that occurs then calling the <code>run!</code> method.</p></div></div><footer><hr/><a class="previous" href="../"><span class="direction">Previous</span><span class="title">Introduction</span></a><a class="next" href="../api/"><span class="direction">Next</span><span class="title">API Reference</span></a></footer></article></body></html>
