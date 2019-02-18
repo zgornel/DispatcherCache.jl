@@ -1,6 +1,7 @@
 using Pkg
 Pkg.add("Documenter")
-using Documenter, DispatcherCache
+Pkg.add("Dispatcher")
+using Documenter, Dispatcher, DispatcherCache
 
 # Make src directory available
 push!(LOAD_PATH,"../src/")
