@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Usage examples · DispatcherCache.jl</title><link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/4.2.0/normalize.min.css" rel="stylesheet" type="text/css"/><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/default.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.2.0/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link href="../assets/documenter.css" rel="stylesheet" type="text/css"/></head><body><nav class="toc"><h1>DispatcherCache.jl</h1><select id="version-selector" onChange="window.location.href=this.value" style="visibility: hidden"></select><form class="search" id="search-form" action="../search/"><input id="search-query" name="q" type="text" placeholder="Search docs"/></form><ul><li><a class="toctext" href="../">Introduction</a></li><li class="current"><a class="toctext" href>Usage examples</a><ul class="internal"><li><a class="toctext" href="#Basics-1">Basics</a></li></ul></li><li><a class="toctext" href="../api/">API Reference</a></li></ul></nav><article id="docs"><header><nav><ul><li><a href>Usage examples</a></li></ul><a class="edit-page" href="https://github.com/zgornel/DispatcherCache.jl/blob/master/docs/src/examples.md"><span class="fa"></span> Edit on GitHub</a></nav><hr/><div id="topbar"><span>Usage examples</span><a class="fa fa-bars" href="#"></a></div></header><h1><a class="nav-anchor" id="Usage-examples-1" href="#Usage-examples-1">Usage examples</a></h1><p>The following examples will attempt to illustrate the basic functionality of the package and how it can be employed to speed up computationally demanding processing pipelines. Although toy problems are being used, it should be straightforward to apply the concepts illustrated below to real-word applications. More subtle properties of the caching mechanism are exemplified in the <a href="https://github.com/zgornel/DispatcherCache.jl/blob/master/test/core.jl">unit tests</a> of the package.</p><h2><a class="nav-anchor" id="Basics-1" href="#Basics-1">Basics</a></h2><p>Let us begin by defining a simple computational task graph with three nodes</p><pre><code class="language-julia-repl">julia&gt; using Dispatcher, DispatcherCache
+
+julia&gt; # Some functions
+       foo(x) = begin sleep(3); x end;
+
+julia&gt; bar(x) = begin sleep(3); x+1 end;
+
+julia&gt; baz(x,y) = begin sleep(2); x-y end;
+
+julia&gt; op1 = @op foo(1);
+
+julia&gt; op2 = @op bar(2);
+
+julia&gt; op3 = @op baz(op1, op2);
+
+julia&gt; G = DispatchGraph(op3)
+DispatchGraph({3, 2} directed simple Int64 graph,NodeSet(DispatchNode[Op(DeferredFuture at (1,1,3),Main.ex-index.baz,&quot;Main.ex-index.baz&quot;),Op(DeferredFuture at (1,1,1),Main.ex-index.foo,&quot;Main.ex-index.foo&quot;),Op(DeferredFuture at (1,1,2),Main.ex-index.bar,&quot;Main.ex-index.bar&quot;)]))</code></pre><p>Once the dispatch graph <code>G</code> is defined, one can calculate the result for any of the nodes contained in it. For example, for the top or <em>leaf</em> node <code>op3</code>,</p><pre><code class="language-julia-repl">julia&gt; extract(r) = fetch(r[1].result.value);  # gets directly the result value
+
+julia&gt; result = run!(AsyncExecutor(), G, [op3]);
+
+julia&gt; println(&quot;result (normal run) = $(extract(result))&quot;)
+result (normal run) = -2</code></pre><p>At this point, the <code>run!</code> method use is the one provided by <code>Dispatcher</code> and no caching occurred. Using the <code>DispatcherCache</code> <code>run!</code> method will cache all intermediary node outputs</p><pre><code class="language-julia-repl">julia&gt; cachedir = mktempdir()  # cache temporary directory
+&quot;/tmp/tmpPmCRE5&quot;
+
+julia&gt; @time result = run!(AsyncExecutor(), G, [op3], cachedir=cachedir);
+  5.211945 seconds (327.79 k allocations: 17.750 MiB, 0.18% gc time)
+
+julia&gt; println(&quot;result (caching run) = $(extract(result))&quot;)
+result (caching run) = -2</code></pre><p>After the first <em>cached</em> run, one can verify that the cache related files exist on disk</p><pre><code class="language-julia-repl">julia&gt; readdir(cachedir)
+2-element Array{String,1}:
+ &quot;cache&quot;
+ &quot;hashchain.json&quot;
+
+julia&gt; readdir(joinpath(cachedir, &quot;cache&quot;))
+3-element Array{String,1}:
+ &quot;86141b1a6a4dd4ab.bin&quot;
+ &quot;8b7bfeeac5ee1b8d.bin&quot;
+ &quot;d12ba889c23ef4c7.bin&quot;</code></pre><p>Running the computation a second time will result in loading the last - cached - result, operation noticeable through the fact that the time needed decreased. </p><pre><code class="language-julia-repl">julia&gt; @time result = run!(AsyncExecutor(), G, [op3], cachedir=cachedir);
+  1.215386 seconds (2.38 M allocations: 119.067 MiB, 4.65% gc time)
+
+julia&gt; println(&quot;result (cached run) = $(extract(result))&quot;)
+result (cached run) = -2</code></pre><p>The cache can be cleaned up by simply removing the cache directory.</p><pre><code class="language-julia-repl">julia&gt; rm(cachedir, recursive=true, force=true)</code></pre><p>If the cache does not exist anymore, a new call of <code>run!(::Executor, G, [op3], cachedir=cachedir)</code> will re-create the cache by running each node.</p><div class="admonition note"><div class="admonition-title">Note</div><div class="admonition-text"><p>In the examples above, the functions <code>foo</code>, <code>bar</code> and <code>baz</code> use the <code>sleep</code> function to simulate longer running computations. This is useful to both illustrate the concept presented and to overcome the pre-compilation overhead that occurs then calling the <code>run!</code> method.</p></div></div><footer><hr/><a class="previous" href="../"><span class="direction">Previous</span><span class="title">Introduction</span></a><a class="next" href="../api/"><span class="direction">Next</span><span class="title">API Reference</span></a></footer></article></body></html>
