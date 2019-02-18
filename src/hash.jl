@@ -106,7 +106,7 @@ dep_hash(node::DispatchNode, key2hash) = begin
         return __hash(h)
     else
         for node in nodes
-            h *= get(key2hash, node, dep_hash(node, key2hash))
+            h *= get(key2hash, node, node_hash(node, key2hash)[1])
         end
         return __hash(h)
     end

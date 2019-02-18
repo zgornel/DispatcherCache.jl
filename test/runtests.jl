@@ -11,6 +11,6 @@ using DispatcherCache
 setlevel!(getlogger("Dispatcher"), "warn")
 
 # Run tests
-# TODO(Corneliu) Low level tests for the hashing and utils functions
 include("compression.jl")
+include("hash.jl")
 include("core.jl")
