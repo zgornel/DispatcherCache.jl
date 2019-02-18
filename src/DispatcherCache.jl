@@ -24,6 +24,7 @@ module DispatcherCache
     using CodecZlib
 
     import Dispatcher: run!
+    export add_hash_cache!
 
     include("constants.jl")
     include("utils.jl")

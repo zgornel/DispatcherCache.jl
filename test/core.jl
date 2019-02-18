@@ -1,7 +1,9 @@
 # Useful constants
-const regex_exec_store = r"getfield\(DispatcherCache, Symbol\(\"#exec_store_wrapper#[0-9]+\"\)\)"
-const regex_load = r"getfield\(DispatcherCache, Symbol\(\"#loading_wrapper#[0-9]+\"\)\)"
-
+const REGEX_EXEC_STORE = r"getfield\(DispatcherCache, Symbol\(\"#exec_store_wrapper#[0-9]+\"\)\)"
+const REGEX_LOAD = r"getfield\(DispatcherCache, Symbol\(\"#loading_wrapper#[0-9]+\"\)\)"
+const TMPDIR = tempdir()
+const COMPRESSION = "none"
+const EXECUTOR = AsyncExecutor()
 
 # Useful functions
 function get_indexed_result_value(graph, idx; executor=AsyncExecutor())
@@ -69,18 +71,89 @@ function example_of_dispatch_graph()
     top1 = @op top(d1, baz2); set_label!(top1, "top1")
 
     graph = DispatchGraph(top1)
-    return graph
+    top_key = "top1"
+    return graph, top_key
 end
 
 
 @testset "DAG Generation" begin
-    graph = example_of_dispatch_graph()
+    graph, top_key = example_of_dispatch_graph()
+    top_key_idx = [i for i in 1:length(graph.nodes)
+                   if graph.nodes[i].label == top_key][1]
     @test graph isa DispatchGraph
-    @test get_indexed_result_value(graph, 1) == -14
-    @test get_labeled_result_value(graph, "top1") == -14
+    @test get_indexed_result_value(graph, top_key_idx) == -14
+    @test get_labeled_result_value(graph, top_key) == -14
 end
 
 
 @testset "First run" begin
+    mktempdir(TMPDIR) do cachedir
+        # Make dispatch graph
+        graph, top_key = example_of_dispatch_graph()
+        # Get endpoints
+        endpoints = [DispatcherCache.get_node(graph, top_key)]
+        # Add hash cache and update graph
+        updates = add_hash_cache!(graph, endpoints,
+                                  compression=COMPRESSION,
+                                  cachedir=cachedir)
 
+        # Test that all keys have been wrapped (EXEC-STORE)
+        for i in length(graph.nodes)
+            node = graph.nodes[i]
+            node isa Op && @test occursin(REGEX_EXEC_STORE, string(node.func))
+        end
+
+        # Run the task graph
+        @test get_labeled_result_value(graph, top_key) == -14
+
+        # Test that files exist
+        hcfile = joinpath(cachedir, DispatcherCache.DEFAULT_HASHCHAIN_FILENAME)
+        hcdir = joinpath(cachedir, DispatcherCache.DEFAULT_HASHCACHE_DIR)
+        @test isfile(hcfile)
+        @test isdir(hcdir)
+        hashchain = open(hcfile, "r") do fid
+            JSON.parse(fid)
+        end
+
+        # Test the hashchain keys
+        @test hashchain["compression"] == COMPRESSION
+        @test hashchain["version"] == 1  # dummy test, version not used so far
+        # Test that each key corresponds to a cache file name
+        cachefiles = readdir(hcdir)
+        nodehashes = keys(hashchain["hashchain"])
+        @test length(nodehashes) == length(cachefiles)
+        for file in readdir(hcdir)
+            _hash = split(file, ".")[1]
+            @test _hash in nodehashes
+        end
+    end
+end
+
+
+@testset "Second run" begin
+    mktempdir(TMPDIR) do cachedir
+        # Make dispatch graph
+        graph, top_key = example_of_dispatch_graph()
+        # Get endpoints
+        endpoints = [DispatcherCache.get_node(graph, top_key)]
+        # Make a first run (generate cache, do not modify graph)
+        result = run!(EXECUTOR, graph, endpoints,
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        @test fetch(result[1].result.value) == -14
+
+        # Add hash cache and update graph
+        updates = add_hash_cache!(graph, endpoints,
+                                  compression=COMPRESSION,
+                                  cachedir=cachedir)
+
+        # Test that all keys have been wrapped (LOAD)
+        for i in length(graph.nodes)
+            node = graph.nodes[i]
+            node isa Op && @test occursin(REGEX_LOAD, string(node.func))
+        end
+
+        # Make a second run
+        @test get_labeled_result_value(graph, top_key) == -14
+    end
 end
