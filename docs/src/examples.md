@@ -22,16 +22,20 @@ G = DispatchGraph(op3)
 Once the dispatch graph `G` is defined, one can calculate the result for any of the nodes contained in it. For example, for the top or _leaf_ node `op3`,
 ```@repl index
 extract(r) = fetch(r[1].result.value);  # gets directly the result value
-result = run!(AsyncExecutor(), G, [op3]);
+result = run!(AsyncExecutor(), G);  # automatically runs op3
 println("result (normal run) = $(extract(result))")
 ```
 
-At this point, the `run!` method use is the one provided by `Dispatcher` and no caching occurred. Using the `DispatcherCache` `run!` method will cache all intermediary node outputs
+Using the `DispatcherCache` `run!` method caches all intermediary node outputs to a specified directory
 ```@repl index
 cachedir = mktempdir()  # cache temporary directory
 @time result = run!(AsyncExecutor(), G, [op3], cachedir=cachedir);
 println("result (caching run) = $(extract(result))")
 ```
+
+!!! note
+
+    The `run!` method with caching support needs explicit specification of the output nodes (the `Dispatcher` one executes directly the leaf nodes of the graph). Through this, one may choose to cache only a subgraph of the full dispatch graph.
 
 After the first _cached_ run, one can verify that the cache related files exist on disk
 ```@repl index
