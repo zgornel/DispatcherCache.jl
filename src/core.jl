@@ -131,7 +131,7 @@ for BZIP compression and `"gz"` or `"gzip"` for GZIP compression
   * `cachedir::String` The cache directory.
 
 # Examples
-```
+```julia
 julia> using Dispatcher
        using DispatcherCache
 
@@ -145,11 +145,11 @@ julia> using Dispatcher
        op2 = @op bar(2)
        op3 = @op baz(op1, op2)
        D = DispatchGraph(op3)
-DispatchGraph({3, 2} directed simple Int64 graph,
-NodeSet(DispatchNode[
-Op(DeferredFuture at (1,1,241),baz,"baz"),
-Op(DeferredFuture at (1,1,239),foo,"foo"),
-Op(DeferredFuture at (1,1,240),bar,"bar")]))
+# DispatchGraph({3, 2} directed simple Int64 graph,
+# NodeSet(DispatchNode[
+# Op(DeferredFuture at (1,1,241),baz,"baz"),
+# Op(DeferredFuture at (1,1,239),foo,"foo"),
+# Op(DeferredFuture at (1,1,240),bar,"bar")]))
 
 julia> # First run, writes results to disk (lasts 2 seconds)
        result_node = [op3]  # the node for which we want results
@@ -157,32 +157,32 @@ julia> # First run, writes results to disk (lasts 2 seconds)
        @time r = run!(AsyncExecutor(), D,
                       result_node, cachedir=cachedir)
        println("result (first run) = \$(fetch(r[1].result.value))")
-[info | Dispatcher]: Executing 3 graph nodes.
-[info | Dispatcher]: Node 1 (Op<baz, Op<foo>, Op<bar>>): running.
-[info | Dispatcher]: Node 2 (Op<foo, Int64>): running.
-[info | Dispatcher]: Node 3 (Op<bar, Int64>): running.
-[info | Dispatcher]: Node 2 (Op<foo, Int64>): complete.
-[info | Dispatcher]: Node 3 (Op<bar, Int64>): complete.
-[info | Dispatcher]: Node 1 (Op<baz, Op<foo>, Op<bar>>): complete.
-[info | Dispatcher]: All 3 nodes executed.
-  2.029992 seconds (11.53 k allocations: 1.534 MiB)
-result (first run) = -2
+# [info | Dispatcher]: Executing 3 graph nodes.
+# [info | Dispatcher]: Node 1 (Op<baz, Op<foo>, Op<bar>>): running.
+# [info | Dispatcher]: Node 2 (Op<foo, Int64>): running.
+# [info | Dispatcher]: Node 3 (Op<bar, Int64>): running.
+# [info | Dispatcher]: Node 2 (Op<foo, Int64>): complete.
+# [info | Dispatcher]: Node 3 (Op<bar, Int64>): complete.
+# [info | Dispatcher]: Node 1 (Op<baz, Op<foo>, Op<bar>>): complete.
+# [info | Dispatcher]: All 3 nodes executed.
+#   2.029992 seconds (11.53 k allocations: 1.534 MiB)
+# result (first run) = -2
 
 julia> # Secod run, loads directly the result from ./__cache__
        @time r = run!(AsyncExecutor(), D,
                       [op3], cachedir=cachedir)
        println("result (second run) = \$(fetch(r[1].result.value))")
-[info | Dispatcher]: Executing 1 graph nodes.
-[info | Dispatcher]: Node 1 (Op<baz>): running.
-[info | Dispatcher]: Node 1 (Op<baz>): complete.
-[info | Dispatcher]: All 1 nodes executed.
-  0.005257 seconds (2.57 k allocations: 478.359 KiB)
-result (second run) = -2
+# [info | Dispatcher]: Executing 1 graph nodes.
+# [info | Dispatcher]: Node 1 (Op<baz>): running.
+# [info | Dispatcher]: Node 1 (Op<baz>): complete.
+# [info | Dispatcher]: All 1 nodes executed.
+#   0.005257 seconds (2.57 k allocations: 478.359 KiB)
+# result (second run) = -2
 
 julia> readdir(cachedir)
-2-element Array{String,1}:
- "cache"
- "hashchain.json"
+# 2-element Array{String,1}:
+#  "cache"
+#  "hashchain.json"
 ```
 """
 function run!(exec::Executor,

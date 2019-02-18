@@ -25,6 +25,21 @@ end
 Hashes the lowered representation of the source code of the function
 associated with `node`. Useful for `Op` nodes, the other node types
 do not have any associated source code.
+
+# Examples
+```julia
+julia> using DispatcherCache: source_hash
+       f(x) = x + 1
+       g(x) = begin
+               #comment
+               x + 1
+              end
+       node_f = @op f(1)
+       node_g = @op g(10)
+       # Test
+	   source_hash(node_f) == source_hash(node_g)
+# true
+```
 """
 source_hash(node::Op) = begin
     f = node.func
@@ -40,6 +55,19 @@ source_hash(node::DispatchNode) = __hash(nothing)
 
 Hash the data arguments (in certain cases configuration fields) of the
 dispatch `node`.
+
+# Examples
+```julia
+julia> using DispatcherCache: arg_hash, __hash
+       f(x) = println("\$x")
+       arg = "argument"
+       node = @op f(arg)
+       arg_hash(node)
+# "d482b7b1b5357c33"
+
+julia> arg_hash(node) == __hash(hash(nothing) + hash(arg) + hash(typeof(arg)))
+# true
+```
 """
 arg_hash(node::Op) = begin
     h = hash(nothing)
@@ -90,6 +118,13 @@ end
 
 Return a hexadecimal string corresponding to the hash of sum
 of the hashes of the value and type of `something`.
+
+# Examples
+```julia
+julia> using DispatcherCache: __hash
+       __hash([1,2,3])
+# "f00429a0d65eb7cb"
+```
 """
 function __hash(something)
     h = hash(hash(typeof(something)) + hash(something))
