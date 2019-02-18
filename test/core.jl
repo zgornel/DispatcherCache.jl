@@ -5,6 +5,8 @@ const TMPDIR = tempdir()
 const COMPRESSION = "none"
 const EXECUTOR = AsyncExecutor()
 
+using DispatcherCache: get_node, node_hash, load_hashchain
+
 # Useful functions
 function get_indexed_result_value(graph, idx; executor=AsyncExecutor())
     _result = run!(executor, graph)
@@ -43,14 +45,25 @@ testing of the module:
       |         |        |     |           |
       v1       v2       v3    v4          v5
 """
-function example_of_dispatch_graph()
-    # Functions
-    foo(argument) = argument
-    bar(argument) = argument + 2
-    baz(args...) = sum(args)
-    boo(args...) = length(args) + sum(args)
-    goo(args...) = sum(args) + 1
-    top(argument, argument2) = argument - argument2
+function example_of_dispatch_graph(modifiers=Dict{String,Function}())
+    # Default functions
+    _foo(argument) = argument
+    _bar(argument) = argument + 2
+    _baz(args...) = sum(args)
+    _boo(args...) = length(args) + sum(args)
+    _goo(args...) = sum(args) + 1
+    _top(argument, argument2) = argument - argument2
+
+	# Apply modifiers if any
+	local foo, bar, baz, boo, goo, top
+	for fname in ["foo", "bar", "baz", "boo", "goo", "top"]
+		foo = get(modifiers, "foo", _foo)
+		bar = get(modifiers, "bar", _bar)
+		baz = get(modifiers, "baz", _baz)
+		boo = get(modifiers, "boo", _boo)
+		goo = get(modifiers, "goo", _goo)
+		top = get(modifiers, "top", _top)
+	end
 
     # Graph (for the function definitions above)
     v1 = 1
@@ -76,7 +89,7 @@ function example_of_dispatch_graph()
 end
 
 
-@testset "DAG Generation" begin
+@testset "Dispatch graph generation" begin
     graph, top_key = example_of_dispatch_graph()
     top_key_idx = [i for i in 1:length(graph.nodes)
                    if graph.nodes[i].label == top_key][1]
@@ -91,7 +104,7 @@ end
         # Make dispatch graph
         graph, top_key = example_of_dispatch_graph()
         # Get endpoints
-        endpoints = [DispatcherCache.get_node(graph, top_key)]
+        endpoints = [get_node(graph, top_key)]
         # Add hash cache and update graph
         updates = add_hash_cache!(graph, endpoints,
                                   compression=COMPRESSION,
@@ -135,7 +148,7 @@ end
         # Make dispatch graph
         graph, top_key = example_of_dispatch_graph()
         # Get endpoints
-        endpoints = [DispatcherCache.get_node(graph, top_key)]
+        endpoints = [get_node(graph, top_key)]
         # Make a first run (generate cache, do not modify graph)
         result = run!(EXECUTOR, graph, endpoints,
                       compression=COMPRESSION,
@@ -155,5 +168,151 @@ end
 
         # Make a second run
         @test get_labeled_result_value(graph, top_key) == -14
+    end
+end
+
+
+@testset "Node changes" begin
+    mktempdir(TMPDIR) do cachedir
+        # Make dispatch graph
+        graph, top_key = example_of_dispatch_graph()
+        # Get endpoints
+        endpoints = [get_node(graph, top_key)]
+        # Make a first run (generate cache, do not modify graph)
+        result = run!(EXECUTOR, graph, endpoints,
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        @test fetch(result[1].result.value) == -14
+
+        # Create altered versions of initial graph
+        new_top(argument, argument2) = argument - argument2 - 1
+        g1, _ = example_of_dispatch_graph(Dict("top" => new_top))
+        g1data = ("top1", ("top1",), -15)
+
+        new_goo(args...) = sum(args) + 2
+        g2, _ = example_of_dispatch_graph(Dict("goo" => new_goo))
+        g2data = ("goo1", ("baz2", "top1"), -15)
+
+        for (graph, (key, impacted_keys, result)) in zip((g1, g2), (g1data, g2data))
+            # Get enpoints for new graphs
+            endpoints = [get_node(graph, top_key)]
+            # Add hash cache and update graph
+            updates = add_hash_cache!(graph, endpoints,
+                                      compression=COMPRESSION,
+                                      cachedir=cachedir)
+
+            # Test that impacted keys are wrapped in EXEC-STORES,
+            # non impacted ones in LOADS
+            for i in length(graph.nodes)
+                node = graph.nodes[i]
+                node isa Op && !(node.label in impacted_keys) &&
+                    @test occursin(REGEX_LOAD, string(node.func))
+                node isa Op && node.label in impacted_keys &&
+                    @test occursin(REGEX_EXEC_STORE, string(node.func))
+            end
+
+            # Make a second run
+            @test get_labeled_result_value(graph, top_key) == result
+        end
+    end
+end
+
+
+@testset "Exec only nodes" begin
+    mktempdir(TMPDIR) do cachedir
+        EXEC_ONLY_KEY = "boo1"
+        # Make dispatch graph
+        graph, top_key = example_of_dispatch_graph()
+        # Get endpoints
+        endpoints = [get_node(graph, top_key)]
+        # Get uncacheable nodes
+        uncacheable = [get_node(graph, EXEC_ONLY_KEY)]
+        # Make a first run (generate cache, do not modify graph)
+        result = run!(EXECUTOR, graph, endpoints,
+                      uncacheable,  # node "boo1" is uncachable
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        @test fetch(result[1].result.value) == -14
+        hashchain = load_hashchain(cachedir)
+
+        # Test that node hash is not in hashchain and no cache
+        # file exists in the cache directory
+        nh = node_hash(get_node(graph, EXEC_ONLY_KEY), Dict{String, String}())
+        @test !(nh in keys(hashchain))
+        @test !(join(nh, ".bin") in
+                readdir(joinpath(cachedir, DispatcherCache.DEFAULT_HASHCACHE_DIR)))
+
+        # Make a new graph that has the "goo1" node modified
+        new_goo(args...) = sum(args) + 2
+        new_graph, top_key = example_of_dispatch_graph(Dict("goo"=>new_goo))
+
+        # Check the final result:
+        # The output of node "boo1" is needed at node "baz2"
+        # because "goo1" was modified. A matching result indicates
+        # that the "boo1" dependencies were loaded and the node
+        # executed correctly which is the desired behaviour
+        # in such cases.
+        endpoints = [get_node(new_graph, top_key)]
+        uncacheable = [get_node(new_graph, EXEC_ONLY_KEY)]
+        result = run!(EXECUTOR, new_graph, endpoints,
+                      uncacheable,
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        @test fetch(result[1].result.value) == -15
+    end
+end
+
+
+@testset "Cache deletion" begin
+    mktempdir(TMPDIR) do cachedir
+        # Make dispatch graph
+        graph, top_key = example_of_dispatch_graph()
+        # Get endpoints
+        endpoints = [get_node(graph, top_key)]
+        # Make a first run (generate cache, do not modify graph)
+        result = run!(EXECUTOR, graph, endpoints,
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        # Remove cache
+        hashcachedir = joinpath(cachedir, DispatcherCache.DEFAULT_HASHCACHE_DIR)
+        rm(hashcachedir, recursive=true, force=true)
+        @test !isdir(hashcachedir)
+        # Make a second run (no hash cache)
+        result = run!(EXECUTOR, graph, endpoints,
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        @test fetch(result[1].result.value) == -14
+    end
+end
+
+
+@testset "Identical nodes" begin
+    v1 = 1
+    foo(x) = x + 1
+    bar(x, y) = x + y
+    foo1 = @op foo(v1); set_label!(foo1, "foo1")
+    foo2 = @op foo(v1); set_label!(foo1, "foo2")
+    bar1 = @op bar(foo1, foo2); set_label!(bar1, "bar1")
+    g = DispatchGraph(bar1)
+
+    mktempdir(TMPDIR) do cachedir
+        hcfile = joinpath(cachedir, DispatcherCache.DEFAULT_HASHCHAIN_FILENAME)
+        hcdir = joinpath(cachedir, DispatcherCache.DEFAULT_HASHCACHE_DIR)
+
+        # Run the first time
+        result = run!(EXECUTOR, g, ["bar1"],
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        @test fetch(result[1].result.value) == 4
+
+        hashchain = load_hashchain(cachedir)
+        cachefiles = readdir(hcdir)
+        nodehashes = keys(hashchain)
+        # Test that 2 hashes / cache files exist (corresponding to "foo" and "bar")
+        @test length(nodehashes) == length(cachefiles) == 2
+
+        # Run the second time
+        result = run!(EXECUTOR, g, ["bar1"], cachedir=cachedir)
+        @test fetch(result[1].result.value) == 4
     end
 end
