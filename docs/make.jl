@@ -10,7 +10,7 @@ push!(LOAD_PATH,"../src/")
 makedocs(
     modules = [DispatcherCache],
     format = :html,
-    sitename = "  ",
+    sitename = "DispatcherCache.jl",
     authors = "Corneliu Cofaru, 0x0α Research",
     clean = true,
     debug = true,

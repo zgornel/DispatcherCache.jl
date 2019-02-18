@@ -19,9 +19,9 @@ op3 = @op baz(op1, op2);
 G = DispatchGraph(op3)
 ```
 
-Once the dispatch graph `G` is defined, one can calculate the result of any of the nodes contained in it. For example, for the top or _leaf_ node `op3`,
+Once the dispatch graph `G` is defined, one can calculate the result for any of the nodes contained in it. For example, for the top or _leaf_ node `op3`,
 ```@repl index
-extract(r) = fetch(r[1].result.value)  # gets directly the result value
+extract(r) = fetch(r[1].result.value);  # gets directly the result value
 result = run!(AsyncExecutor(), G, [op3]);
 println("result (normal run) = $(extract(result))")
 ```
@@ -45,10 +45,11 @@ Running the computation a second time will result in loading the last - cached -
 println("result (cached run) = $(extract(result))")
 ```
 
-Clean up
+The cache can be cleaned up by simply removing the cache directory.
 ```@repl index
 rm(cachedir, recursive=true, force=true)
 ```
+If the cache does not exist anymore, a new call of `run!(::Executor, G, [op3], cachedir=cachedir)` will re-create the cache by running each node.
 
 !!! note
 
