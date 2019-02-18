@@ -37,7 +37,15 @@ var documenterSearchIndex = {"docs": [
     "page": "Usage examples",
     "title": "Usage examples",
     "category": "section",
-    "text": "To do ..."
+    "text": "The following examples will attempt to illustrate the basic functionality of the package and how it can be employed to speed up computationally demanding processing pipelines. Although toy problems are being used, it should be straightforward to apply the concepts illustrated below to real-word applications. More subtle properties of the caching mechanism are exemplified in the unit tests of the package."
+},
+
+{
+    "location": "examples/#Basics-1",
+    "page": "Usage examples",
+    "title": "Basics",
+    "category": "section",
+    "text": "Let us begin by defining a simple computational task graph with three nodesusing Dispatcher, DispatcherCache\n\n# Some functions\nfoo(x) = begin sleep(3); x end;\nbar(x) = begin sleep(3); x+1 end;\nbaz(x,y) = begin sleep(2); x-y end;\n\nop1 = @op foo(1);\nop2 = @op bar(2);\nop3 = @op baz(op1, op2);\nG = DispatchGraph(op3)Once the dispatch graph G is defined, one can calculate the result of any of the nodes contained in it. For example, for the top or leaf node op3,extract(r) = fetch(r[1].result.value)  # gets directly the result value\nresult = run!(AsyncExecutor(), G, [op3]);\nprintln(\"result (normal run) = $(extract(result))\")At this point, the run! method use is the one provided by Dispatcher and no caching occurred. Using the DispatcherCache run! method will cache all intermediary node outputscachedir = mktempdir()  # cache temporary directory\n@time result = run!(AsyncExecutor(), G, [op3], cachedir=cachedir);\nprintln(\"result (caching run) = $(extract(result))\")After the first cached run, one can verify that the cache related files exist on diskreaddir(cachedir)\nreaddir(joinpath(cachedir, \"cache\"))Running the computation a second time will result in loading the last - cached - result, operation noticeable through the fact that the time needed decreased. @time result = run!(AsyncExecutor(), G, [op3], cachedir=cachedir);\nprintln(\"result (cached run) = $(extract(result))\")Clean uprm(cachedir, recursive=true, force=true)note: Note\nIn the examples above, the functions foo, bar and baz use the sleep function to simulate longer running computations. This is useful to both illustrate the concept presented and to overcome the pre-compilation overhead that occurs then calling the run! method."
 },
 
 {
@@ -49,7 +57,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.add_hash_cache!-Union{Tuple{DispatchGraph}, Tuple{T}, Tuple{DispatchGraph,Array{T,1}}, Tuple{DispatchGraph,Array{T,1},Array{T,1}}} where T<:(Union{#s114, #s115} where #s115<:AbstractString where #s114<:Dispatcher.DispatchNode)",
+    "location": "api/#DispatcherCache.add_hash_cache!-Union{Tuple{DispatchGraph}, Tuple{T}, Tuple{DispatchGraph,Array{T,1}}, Tuple{DispatchGraph,Array{T,1},Array{T,1}}} where T<:(Union{#s114, #s115} where #s115<:AbstractString where #s114<:DispatchNode)",
     "page": "API Reference",
     "title": "DispatcherCache.add_hash_cache!",
     "category": "method",
@@ -57,7 +65,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#Dispatcher.run!-Union{Tuple{T}, Tuple{Executor,DispatchGraph,Array{T,1}}, Tuple{Executor,DispatchGraph,Array{T,1},Array{T,1}}} where T<:(Union{#s98, #s97} where #s97<:AbstractString where #s98<:Dispatcher.DispatchNode)",
+    "location": "api/#Dispatcher.run!-Union{Tuple{T}, Tuple{Executor,DispatchGraph,Array{T,1}}, Tuple{Executor,DispatchGraph,Array{T,1},Array{T,1}}} where T<:(Union{#s98, #s97} where #s97<:AbstractString where #s98<:DispatchNode)",
     "page": "API Reference",
     "title": "Dispatcher.run!",
     "category": "method",
@@ -73,7 +81,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.arg_hash-Tuple{Dispatcher.Op}",
+    "location": "api/#DispatcherCache.arg_hash-Tuple{Op}",
     "page": "API Reference",
     "title": "DispatcherCache.arg_hash",
     "category": "method",
@@ -81,7 +89,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.dep_hash-Tuple{Dispatcher.DispatchNode,Any}",
+    "location": "api/#DispatcherCache.dep_hash-Tuple{DispatchNode,Any}",
     "page": "API Reference",
     "title": "DispatcherCache.dep_hash",
     "category": "method",
@@ -97,7 +105,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.get_dependencies-Union{Tuple{T}, Tuple{DispatchGraph,Type{T}}} where T<:Dispatcher.DispatchNode",
+    "location": "api/#DispatcherCache.get_dependencies-Union{Tuple{T}, Tuple{DispatchGraph,Type{T}}} where T<:DispatchNode",
     "page": "API Reference",
     "title": "DispatcherCache.get_dependencies",
     "category": "method",
@@ -105,7 +113,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.get_keys-Union{Tuple{T}, Tuple{DispatchGraph,Type{T}}} where T<:Dispatcher.DispatchNode",
+    "location": "api/#DispatcherCache.get_keys-Union{Tuple{T}, Tuple{DispatchGraph,Type{T}}} where T<:DispatchNode",
     "page": "API Reference",
     "title": "DispatcherCache.get_keys",
     "category": "method",
@@ -113,7 +121,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.get_node-Union{Tuple{T}, Tuple{DispatchGraph,T}} where T<:Dispatcher.DispatchNode",
+    "location": "api/#DispatcherCache.get_node-Union{Tuple{T}, Tuple{DispatchGraph,T}} where T<:DispatchNode",
     "page": "API Reference",
     "title": "DispatcherCache.get_node",
     "category": "method",
@@ -137,7 +145,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.root_nodes-Tuple{Dispatcher.DispatchGraph}",
+    "location": "api/#DispatcherCache.root_nodes-Tuple{DispatchGraph}",
     "page": "API Reference",
     "title": "DispatcherCache.root_nodes",
     "category": "method",
@@ -145,7 +153,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.source_hash-Tuple{Dispatcher.Op}",
+    "location": "api/#DispatcherCache.source_hash-Tuple{Op}",
     "page": "API Reference",
     "title": "DispatcherCache.source_hash",
     "category": "method",
@@ -161,7 +169,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#DispatcherCache.wrap_to_load!-Tuple{Dict{Dispatcher.DispatchNode,Dispatcher.DispatchNode},Dispatcher.DispatchNode,String}",
+    "location": "api/#DispatcherCache.wrap_to_load!-Tuple{Dict{DispatchNode,DispatchNode},DispatchNode,String}",
     "page": "API Reference",
     "title": "DispatcherCache.wrap_to_load!",
     "category": "method",
