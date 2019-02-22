@@ -126,6 +126,6 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
         ifelse(arg isa DispatchNode, get(updates, arg, arg), arg)
     end
     # Add wrapped node to updates
-    push!(updates, node=>node)
+    push!(updates, node=>newnode)
     return nothing
 end
