@@ -55,7 +55,7 @@ node is added to `updates` which maps `node` to the generated node.
 """
 # TODO(Corneliu) handle other types of DispatchNode
 function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
-                        node::DispatchNode,
+                        node::Op,
                         nodehash::String;
                         cachedir::String=DEFAULT_CACHE_DIR,
                         compression::String=DEFAULT_COMPRESSION,
@@ -98,7 +98,7 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
     # the latter should contain at this point only solved nodes (so the
     # dependencies of the current node should be good.
     newnode = Op(exec_store_wrapper)
-    newnode.label = node.label
+    newnode.label = get_label(node)
     newnode.args = map(node.args) do arg
         ifelse(arg isa DispatchNode, get(updates, arg, arg), arg)
     end
@@ -109,5 +109,23 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
              end)...,)))
     # Add wrapped node to updates
     push!(updates, node=>newnode)
+    return nothing
+end
+
+
+function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
+                        node::IndexNode,
+                        nodehash::String;
+                        cachedir::String=DEFAULT_CACHE_DIR,
+                        compression::String=DEFAULT_COMPRESSION,
+                        skipcache::Bool=false)
+    idx = node.index
+    newnode = Op(r->getindex(r, idx))
+    newnode.label = "IndexNode_$nodehash"
+    newnode.args = map([node.node]) do arg
+        ifelse(arg isa DispatchNode, get(updates, arg, arg), arg)
+    end
+    # Add wrapped node to updates
+    push!(updates, node=>node)
     return nothing
 end
