@@ -39,7 +39,7 @@ function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
 
     # Add wrapped node to updates (no arguments to update :)
     newnode = Op(loading_wrapper)
-    newnode.label = node.label
+    newnode.label = _labelize(node, nodehash)
     push!(updates, node => newnode)
     return nothing
 end
@@ -48,14 +48,13 @@ end
 """
     wrap_to_store!(graph, node, nodehash; compression=DEFAULT_COMPRESSION)
 
-Generates a new dispatch node that corresponds to `node::DispatchNode`
+Generates a new `Op` node that corresponds to `node::DispatchNode`
 and which stores the output of the execution of `node` in a file whose
 name and extension depend on `nodehash` and `compression`. The generated
 node is added to `updates` which maps `node` to the generated node.
 """
-# TODO(Corneliu) handle other types of DispatchNode
 function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
-                        node::Op,
+                        node::DispatchNode,
                         nodehash::String;
                         cachedir::String=DEFAULT_CACHE_DIR,
                         compression::String=DEFAULT_COMPRESSION,
@@ -78,10 +77,11 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
         compressor = get_compressor(compression, "compress")
 
         # Get calculation result
-        result = node.func(args...; kwargs...)
+        result = _run_node(node, args...; kwargs...)
 
         # Store result
-        @debug "[$nodehash][$(node.label)] $operation (compression=$compression)"
+        label = _labelize(node, nodehash)
+        @debug "[$nodehash][$(label)] $operation (compression=$compression)"
         if !skipcache
             if !isfile(filepath)
                 open(compressor, filepath, "w") do fid
@@ -98,34 +98,57 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
     # the latter should contain at this point only solved nodes (so the
     # dependencies of the current node should be good.
     newnode = Op(exec_store_wrapper)
-    newnode.label = get_label(node)
-    newnode.args = map(node.args) do arg
-        ifelse(arg isa DispatchNode, get(updates, arg, arg), arg)
-    end
-    newnode.kwargs = pairs(
-        NamedTuple{(node.kwargs.itr...,)}(
-            ((map(node.kwargs.data) do kwarg
+    newnode.label = _labelize(node, nodehash)
+    newnode.args = _arguments(node, updates)
+    newnode.kwargs = _kwarguments(node, updates)
+    # Add wrapped node to updates
+    push!(updates, node=>newnode)
+    return nothing
+end
+
+
+# Small wrapper that executes a node
+_run_node(node::Op, args...; kwargs...) = node.func(args...; kwargs...)
+
+_run_node(node::IndexNode, args...; kwargs...) = getindex(args..., node.index)
+
+_run_node(node::CollectNode, args...; kwargs...) = vcat(args...)
+
+_run_node(node::DataNode, args...; kwargs...) = indentity(args...)
+
+
+# Small wrapper that gets the label for a wrapped node
+_labelize(node::Op, args...) = get_label(node)
+
+_labelize(node::CollectNode, args...) = get_label(node)
+
+_labelize(node::IndexNode, nodehash::String) = "IndexNode_$nodenash"
+
+_labelize(node::DataNode, nodehash::String) = "DataNode_$nodenash"
+
+
+# Small wrapper that generates new arguments for a wrapped node
+_arguments(node::Op, updates) = map(node.args) do arg
+    ifelse(arg isa DispatchNode, get(updates, arg, arg), arg)
+end
+
+_arguments(node::IndexNode, updates) =
+    tuple(get(updates, node.node, node.node))
+
+_arguments(node::CollectNode, updates) =
+    Tuple(get(updates, n, n) for n in node.nodes)
+
+_arguments(node::DataNode, updates) =
+    tuple(ifelse(node.data isa DispatchNode,
+                 get(updates, node.data, node.data),
+                 node.data))
+
+
+# Small wrapper that generates new keyword arguments for a wrapped node
+_kwarguments(node::Op, updates) = pairs(
+    NamedTuple{(node.kwargs.itr...,)}(
+        ((map(node.kwargs.data) do kwarg
                  ifelse(kwarg isa DispatchNode, get(updates, kwarg, kwarg), kwarg)
              end)...,)))
-    # Add wrapped node to updates
-    push!(updates, node=>newnode)
-    return nothing
-end
 
-
-function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
-                        node::IndexNode,
-                        nodehash::String;
-                        cachedir::String=DEFAULT_CACHE_DIR,
-                        compression::String=DEFAULT_COMPRESSION,
-                        skipcache::Bool=false)
-    idx = node.index
-    newnode = Op(r->getindex(r, idx))
-    newnode.label = "IndexNode_$nodehash"
-    newnode.args = map([node.node]) do arg
-        ifelse(arg isa DispatchNode, get(updates, arg, arg), arg)
-    end
-    # Add wrapped node to updates
-    push!(updates, node=>newnode)
-    return nothing
-end
+_kwarguments(node::DispatchNode, updates) = pairs(NamedTuple())
