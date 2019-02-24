@@ -114,7 +114,7 @@ _run_node(node::IndexNode, args...; kwargs...) = getindex(args..., node.index)
 
 _run_node(node::CollectNode, args...; kwargs...) = vcat(args...)
 
-_run_node(node::DataNode, args...; kwargs...) = indentity(args...)
+_run_node(node::DataNode, args...; kwargs...) = identity(args...)
 
 
 # Small wrapper that gets the label for a wrapped node
@@ -122,9 +122,9 @@ _labelize(node::Op, args...) = get_label(node)
 
 _labelize(node::CollectNode, args...) = get_label(node)
 
-_labelize(node::IndexNode, nodehash::String) = "IndexNode_$nodenash"
+_labelize(node::IndexNode, nodehash::String) = "IndexNode_$nodehash"
 
-_labelize(node::DataNode, nodehash::String) = "DataNode_$nodenash"
+_labelize(node::DataNode, nodehash::String) = "DataNode_$nodehash"
 
 
 # Small wrapper that generates new arguments for a wrapped node
