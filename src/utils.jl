@@ -9,8 +9,11 @@ if `T<:DispatchNode` the iterator is over the nodes of the graph.
 get_keys(graph::DispatchGraph, ::Type{T}) where T<:DispatchNode =
     keys(graph.nodes.node_dict)
 
+#TODO(Corneliu) Improve this bit and connected logic
 get_keys(graph::DispatchGraph, ::Type{T}) where T<:AbstractString =
-    imap(x->x.label, get_keys(graph, DispatchNode))
+    imap(get_keys(graph, DispatchNode)) do node
+        has_label(node) ? get_label(node) : ""
+    end
 
 
 """
@@ -38,7 +41,7 @@ get_node(graph::DispatchGraph, node::T) where T<:DispatchNode = node
 get_node(graph::DispatchGraph, label::T) where T<:AbstractString = begin
     found = Set{DispatchNode}()
     for node in get_keys(graph, DispatchNode)
-        node.label == label && push!(found, node)
+        get_label(node) == label && push!(found, node)
     end
     length(found) > 1 && throw(ErrorException("Labels in dispatch graph are not unique."))
     length(found) < 1 && throw(ErrorException("No nodes with label $label found."))
