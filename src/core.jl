@@ -34,21 +34,23 @@ Note: This function should be used with care as it modifies the input
       the distict, functionally identical graphs.
 """
 function add_hash_cache!(graph::DispatchGraph,
-                         endpoints::Vector{T}=T[],
-                         uncacheable::Vector{T}=T[];
+                         endpoints::AbstractVector=[],
+                         uncacheable::AbstractVector=[];
                          compression::String=DEFAULT_COMPRESSION,
-                         cachedir::String=DEFAULT_CACHE_DIR
-                        ) where T<:Union{<:DispatchNode, <:AbstractString}
+                         cachedir::String=DEFAULT_CACHE_DIR)
     # Checks
     if isempty(endpoints)
         @warn "No enpoints for graph, will not process dispatch graph."
         return nothing
     end
 
-    # Initializations
-    subgraph = Dispatcher.subgraph(
-                    graph, map(n->get_node(graph, n), endpoints))
+    T = supertype(eltype(endpoints))
+    if T >: DispatchNode && T >: AbstractString
+        @error "Endpoint keys should be either DispatchNode's or strings"
+    end
 
+    # Initializations
+    subgraph = Dispatcher.subgraph(graph, map(n->get_node(graph, n), endpoints))
     work = collect(T, get_keys(graph, T))       # keys to be traversed
     solved = Set{T}()                           # keys of computable tasks
     dependencies = get_dependencies(graph, T)   # dependencies of all tasks
@@ -187,11 +189,10 @@ julia> readdir(cachedir)
 """
 function run!(exec::Executor,
               graph::DispatchGraph,
-              endpoints::Vector{T},
-              uncacheable::Vector{T}=T[];
+              endpoints::AbstractVector,
+              uncacheable::AbstractVector=[];
               compression::String=DEFAULT_COMPRESSION,
-              cachedir::String=DEFAULT_CACHE_DIR
-             ) where T<:Union{<:DispatchNode, <:AbstractString}
+              cachedir::String=DEFAULT_CACHE_DIR)
     # Make a copy of the input graph that will be modified
     # and mappings from the original nodes to the copies
     tmp_graph = Base.deepcopy(graph)
