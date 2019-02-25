@@ -30,7 +30,6 @@ function get_result_value(graph; executor=AsyncExecutor())
 end
 
 
-
 raw"""
 Generates a Dispatcher task graph of the form below,
 which will be used as a basis for the functional

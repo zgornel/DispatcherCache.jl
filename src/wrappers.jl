@@ -1,5 +1,7 @@
 """
-    wrap_to_load!(updates, node, nodehash; cachedir=DEFAULT_CACHE_DIR, compression=DEFAULT_COMPRESSION)
+    wrap_to_load!(updates, node, nodehash;
+                  cachedir=DEFAULT_CACHE_DIR,
+                  compression=DEFAULT_COMPRESSION)
 
 Generates a new dispatch node that corresponds to `node::DispatchNode`
 and which loads a file from the `cachedir` cache directory whose name and extension
@@ -46,12 +48,17 @@ end
 
 
 """
-    wrap_to_store!(graph, node, nodehash; compression=DEFAULT_COMPRESSION)
+    wrap_to_store!(graph, node, nodehash;
+                   cachedir=DEFAULT_CACHE_DIR,
+                   compression=DEFAULT_COMPRESSION,
+                   skipcache=false)
 
 Generates a new `Op` node that corresponds to `node::DispatchNode`
 and which stores the output of the execution of `node` in a file whose
 name and extension depend on `nodehash` and `compression`. The generated
-node is added to `updates` which maps `node` to the generated node.
+node is added to `updates` which maps `node` to the generated node. The
+node output is stored in `cachedir`. The caching is skipped if `skipcache`
+is `true`.
 """
 function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
                         node::DispatchNode,

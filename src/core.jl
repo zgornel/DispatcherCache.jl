@@ -1,5 +1,6 @@
 """
-    add_hash_cache!(graph, endpoints, uncacheable, compression=DEFAULT_COMPRESSION, cachedir=DEFAULT_CACHE_DIR)
+    add_hash_cache!(graph, endpoints=[], uncacheable=[]
+                    [; compression=DEFAULT_COMPRESSION, cachedir=DEFAULT_CACHE_DIR])
 
 Optimizes a delayed execution graph `graph::DispatchGraph`
 by wrapping individual nodes in load-from-disk on execute-and-store
@@ -44,17 +45,13 @@ function add_hash_cache!(graph::DispatchGraph,
         return nothing
     end
 
-    T = supertype(eltype(endpoints))
-    if T >: DispatchNode && T >: AbstractString
-        @error "Endpoint keys should be either DispatchNode's or strings"
-    end
-
     # Initializations
-    subgraph = Dispatcher.subgraph(graph, map(n->get_node(graph, n), endpoints))
-    work = collect(T, get_keys(graph, T))       # keys to be traversed
-    solved = Set{T}()                           # keys of computable tasks
-    dependencies = get_dependencies(graph, T)   # dependencies of all tasks
-    key2hash = Dict{T, String}()                # key=>hash mapping
+    _endpoints = map(n->get_node(graph, n), endpoints)
+    _uncacheable = imap(n->get_node(graph, n), uncacheable)
+    subgraph = Dispatcher.subgraph(graph, _endpoints)
+    work = collect(nodes(graph))                # nodes to be traversed
+    solved = Set{DispatchNode}()                # computable tasks
+    node2hash = Dict{DispatchNode, String}()    # node => hash mapping
     storable = Set{String}()                    # hashes of nodes with storable output
     updates = Dict{DispatchNode, DispatchNode}()
 
@@ -62,15 +59,14 @@ function add_hash_cache!(graph::DispatchGraph,
     hashchain = load_hashchain(cachedir, compression=compression)
     # Traverse dispatch graph
     while !isempty(work)
-        key = popfirst!(work)
-        deps = dependencies[key]
+        node = popfirst!(work)
+        deps = dependencies(node)
         if isempty(deps) || issubset(deps, solved)
             # Node is solvable
-            push!(solved, key)
-            node = get_node(graph, key)          # The node is always a DispatchNode
-            _hash_node, _hash_comp = node_hash(node, key2hash)
-            key2hash[key] = _hash_node
-            skipcache = key in uncacheable || !(node in subgraph.nodes)
+            push!(solved, node)
+            _hash_node, _hash_comp = node_hash(node, node2hash)
+            node2hash[node] = _hash_node
+            skipcache = node in _uncacheable || !(node in subgraph.nodes)
             # Wrap nodes
             if _hash_node in keys(hashchain) && !skipcache &&
                     !(_hash_node in storable)
@@ -95,7 +91,7 @@ function add_hash_cache!(graph::DispatchGraph,
             end
         else
             # Non-solvable node
-            push!(work, key)
+            push!(work, node)
         end
     end
     # Update graph
