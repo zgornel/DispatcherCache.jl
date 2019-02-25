@@ -43,7 +43,13 @@ julia> using DispatcherCache: source_hash
 """
 source_hash(node::Op) = begin
     f = node.func
-    code = join(code_lowered(f)[1].code, "\n")
+    local code
+    try
+        code = join(code_lowered(f)[1].code, "\n")
+    catch
+        code = get_label(node)
+        @warn "Cannot hash code for node $(code) (using label)."
+    end
     return __hash(code)
 end
 

@@ -15,7 +15,11 @@ git clone "https://zgornel.github.com/DispatcherCache.jl"
 ```
 or, from inside Julia,
 ```
-] add https://zgornel.github.com/DispatcherCache.jl#master
+] add DispatcherCache
+```
+and for the latest `master` branch,
+```
+] add https://github.com/zgornel/DispatcherCache.jl#master
 ```
 
 

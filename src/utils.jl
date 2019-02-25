@@ -1,34 +1,4 @@
 """
-    get_keys(graph, ::Type{T})
-
-Returns an iterator of the nodes of the dispatch graph `graph`.
-The returned iterator generates elements of type `T`: if
-`T<:AbstractString` the iterator is over the labels of the graph,
-if `T<:DispatchNode` the iterator is over the nodes of the graph.
-"""
-get_keys(graph::DispatchGraph, ::Type{T}) where T<:DispatchNode =
-    keys(graph.nodes.node_dict)
-
-get_keys(graph::DispatchGraph, ::Type{T}) where T<:AbstractString =
-    imap(x->x.label, get_keys(graph, DispatchNode))
-
-
-"""
-    get_dependencies(graph, ::Type{T})
-
-Returns a dictionary where the keys are, depending on `T`, the node labels
-or nodes of `graph::DsipatchGraph` and vthe alues are iterators over either
-the node labels or nodes corresponding to the depencies of the key node.
-"""
-get_dependencies(graph::DispatchGraph, ::Type{T}) where T<:DispatchNode =
-    Dict(k => (dependencies(k)) for k in get_keys(graph, T))
-
-get_dependencies(graph::DispatchGraph, ::Type{T}) where T<:AbstractString =
-    Dict(k.label => imap(x->x.label, dependencies(k))
-         for k in get_keys(graph, DispatchNode))
-
-
-"""
     get_node(graph, label)
 
 Returns the node corresponding to `label`.
@@ -37,12 +7,19 @@ get_node(graph::DispatchGraph, node::T) where T<:DispatchNode = node
 
 get_node(graph::DispatchGraph, label::T) where T<:AbstractString = begin
     found = Set{DispatchNode}()
-    for node in get_keys(graph, DispatchNode)
-        node.label == label && push!(found, node)
+    for node in nodes(graph)
+        if has_label(node)
+            get_label(node) == label && push!(found, node)
+        end
     end
     length(found) > 1 && throw(ErrorException("Labels in dispatch graph are not unique."))
     length(found) < 1 && throw(ErrorException("No nodes with label $label found."))
     return pop!(found)
+end
+
+get_node(graph::DispatchGraph, node::T) where T = begin
+    throw(ArgumentError("A node identifier can be either a " *
+                        "::DispatchNode or ::AbstractString."))
 end
 
 

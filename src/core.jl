@@ -1,5 +1,6 @@
 """
-    add_hash_cache!(graph, endpoints, uncacheable, compression=DEFAULT_COMPRESSION, cachedir=DEFAULT_CACHE_DIR)
+    add_hash_cache!(graph, endpoints=[], uncacheable=[]
+                    [; compression=DEFAULT_COMPRESSION, cachedir=DEFAULT_CACHE_DIR])
 
 Optimizes a delayed execution graph `graph::DispatchGraph`
 by wrapping individual nodes in load-from-disk on execute-and-store
@@ -15,12 +16,12 @@ or alternatively re-run and store the outputs of nodes which have new state.
 # Arguments
   * `exec::Executor` the `Dispatcher.jl` executor
   * `graph::DispatchGraph` input dispatch graph
-  * `endpoints::Vector{Union{DispatchNode, AbstractString}}` leaf nodes for which
-caching will occur; nodes that depend on these will not be cached. The nodes
-can be specified either by label of by the node object itself
-  * uncacheable::Vector{Union{DispatchNode, AbstractString}}` nodes that will
-never be cached and will always be executed (these nodes are still hashed and
-their hashes influence upstream node hashes as well)
+  * `endpoints::AbstractVector` leaf nodes for which caching will occur;
+nodes that depend on these will not be cached. The nodes can be specified
+either by label of by the node object itself
+  * uncacheable::AbstractVector` nodes that will never be cached and
+will always be executed (these nodes are still hashed and their hashes
+influence upstream node hashes as well)
 
 # Keyword arguments
   * `compression::String` enables compression of the node outputs.
@@ -34,11 +35,10 @@ Note: This function should be used with care as it modifies the input
       the distict, functionally identical graphs.
 """
 function add_hash_cache!(graph::DispatchGraph,
-                         endpoints::Vector{T}=T[],
-                         uncacheable::Vector{T}=T[];
+                         endpoints::AbstractVector=[],
+                         uncacheable::AbstractVector=[];
                          compression::String=DEFAULT_COMPRESSION,
-                         cachedir::String=DEFAULT_CACHE_DIR
-                        ) where T<:Union{<:DispatchNode, <:AbstractString}
+                         cachedir::String=DEFAULT_CACHE_DIR)
     # Checks
     if isempty(endpoints)
         @warn "No enpoints for graph, will not process dispatch graph."
@@ -46,13 +46,12 @@ function add_hash_cache!(graph::DispatchGraph,
     end
 
     # Initializations
-    subgraph = Dispatcher.subgraph(
-                    graph, map(n->get_node(graph, n), endpoints))
-
-    work = collect(T, get_keys(graph, T))       # keys to be traversed
-    solved = Set{T}()                           # keys of computable tasks
-    dependencies = get_dependencies(graph, T)   # dependencies of all tasks
-    key2hash = Dict{T, String}()                # key=>hash mapping
+    _endpoints = map(n->get_node(graph, n), endpoints)
+    _uncacheable = imap(n->get_node(graph, n), uncacheable)
+    subgraph = Dispatcher.subgraph(graph, _endpoints)
+    work = collect(nodes(graph))                # nodes to be traversed
+    solved = Set{DispatchNode}()                # computable tasks
+    node2hash = Dict{DispatchNode, String}()    # node => hash mapping
     storable = Set{String}()                    # hashes of nodes with storable output
     updates = Dict{DispatchNode, DispatchNode}()
 
@@ -60,15 +59,14 @@ function add_hash_cache!(graph::DispatchGraph,
     hashchain = load_hashchain(cachedir, compression=compression)
     # Traverse dispatch graph
     while !isempty(work)
-        key = popfirst!(work)
-        deps = dependencies[key]
+        node = popfirst!(work)
+        deps = dependencies(node)
         if isempty(deps) || issubset(deps, solved)
             # Node is solvable
-            push!(solved, key)
-            node = get_node(graph, key)          # The node is always a DispatchNode
-            _hash_node, _hash_comp = node_hash(node, key2hash)
-            key2hash[key] = _hash_node
-            skipcache = key in uncacheable || !(node in subgraph.nodes)
+            push!(solved, node)
+            _hash_node, _hash_comp = node_hash(node, node2hash)
+            node2hash[node] = _hash_node
+            skipcache = node in _uncacheable || !(node in subgraph.nodes)
             # Wrap nodes
             if _hash_node in keys(hashchain) && !skipcache &&
                     !(_hash_node in storable)
@@ -93,7 +91,7 @@ function add_hash_cache!(graph::DispatchGraph,
             end
         else
             # Non-solvable node
-            push!(work, key)
+            push!(work, node)
         end
     end
     # Update graph
@@ -117,12 +115,12 @@ outputs of the nodes in the subgraph whose leaf nodes are given by
 # Arguments
   * `exec::Executor` the `Dispatcher.jl` executor
   * `graph::DispatchGraph` input dispatch graph
-  * `endpoints::Vector{Union{DispatchNode, AbstractString}}` leaf nodes for which
-caching will occur; nodes that depend on these will not be cached. The nodes
-can be specified either by label of by the node object itself
-  * uncacheable::Vector{Union{DispatchNode, AbstractString}}` nodes that will
-never be cached and will always be executed (these nodes are still hashed and
-their hashes influence upstream node hashes as well)
+  * `endpoints::AbstractVector` leaf nodes for which caching will occur;
+nodes that depend on these will not be cached. The nodes can be specified
+either by label of by the node object itself
+  * `uncacheable::AbstractVector` nodes that will never be cached and will
+always be executed (these nodes are still hashed and their hashes influence
+upstream node hashes as well)
 
 # Keyword arguments
   * `compression::String` enables compression of the node outputs.
@@ -187,11 +185,10 @@ julia> readdir(cachedir)
 """
 function run!(exec::Executor,
               graph::DispatchGraph,
-              endpoints::Vector{T},
-              uncacheable::Vector{T}=T[];
+              endpoints::AbstractVector,
+              uncacheable::AbstractVector=[];
               compression::String=DEFAULT_COMPRESSION,
-              cachedir::String=DEFAULT_CACHE_DIR
-             ) where T<:Union{<:DispatchNode, <:AbstractString}
+              cachedir::String=DEFAULT_CACHE_DIR)
     # Make a copy of the input graph that will be modified
     # and mappings from the original nodes to the copies
     tmp_graph = Base.deepcopy(graph)

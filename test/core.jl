@@ -24,6 +24,11 @@ function get_labeled_result_value(graph, label; executor=AsyncExecutor())
     return nothing
 end
 
+function get_result_value(graph; executor=AsyncExecutor())
+    _result = run!(executor, graph)
+    return fetch(_result[1].result.value)
+end
+
 
 raw"""
 Generates a Dispatcher task graph of the form below,
@@ -110,7 +115,7 @@ end
                                   compression=COMPRESSION,
                                   cachedir=cachedir)
 
-        # Test that all keys have been wrapped (EXEC-STORE)
+        # Test that all nodes have been wrapped (EXEC-STORE)
         for i in length(graph.nodes)
             node = graph.nodes[i]
             node isa Op && @test occursin(REGEX_EXEC_STORE, string(node.func))
@@ -160,7 +165,7 @@ end
                                   compression=COMPRESSION,
                                   cachedir=cachedir)
 
-        # Test that all keys have been wrapped (LOAD)
+        # Test that all nodes have been wrapped (LOAD)
         for i in length(graph.nodes)
             node = graph.nodes[i]
             node isa Op && @test occursin(REGEX_LOAD, string(node.func))
@@ -201,7 +206,7 @@ end
                                       compression=COMPRESSION,
                                       cachedir=cachedir)
 
-            # Test that impacted keys are wrapped in EXEC-STORES,
+            # Test that impacted nodes are wrapped in EXEC-STORES,
             # non impacted ones in LOADS
             for i in length(graph.nodes)
                 node = graph.nodes[i]
@@ -314,5 +319,117 @@ end
         # Run the second time
         result = run!(EXECUTOR, g, ["bar1"], cachedir=cachedir)
         @test fetch(result[1].result.value) == 4
+    end
+end
+
+
+raw"""
+Generates a Dispatcher task graph of the form below,
+which will be used as a basis for the functional
+testing of the module. This dispatch graph contains
+all subtypes of `DispatchNode`.
+
+                     O top(..)
+                 ____|____
+                /         \
+               O           O
+          DataNode(1)  IndexNode(...,1)
+                           |
+                           O
+                      CollectNode(...)
+                  _________|________
+                 /                  \
+                O foo(...)           O bar(...)
+                |                    |
+                |                    |
+                v1                   v2
+"""
+function example_of_dispatch_graph_w_mixed_nodes(modifiers=Dict{String,Function}())
+    # Default functions
+    _foo(argument) = argument
+    _bar(argument) = argument + 2
+    _top(argument, argument2) = argument - argument2
+
+	# Apply modifiers if any
+	local foo, bar, top
+	for fname in ["foo", "bar", "top"]
+		foo = get(modifiers, "foo", _foo)
+		bar = get(modifiers, "bar", _bar)
+		top = get(modifiers, "top", _top)
+	end
+
+    # Graph (for the function definitions above)
+    v1 = 1
+    v2 = 2
+    foo1 = @op foo(v1); set_label!(foo1, "foo1")
+    bar1 = @op bar(v2); set_label!(bar1, "bar1")
+    d1 = DataNode(1)
+    col1 = CollectNode([foo1, bar1])
+    idx1 = IndexNode(col1, 1)
+    top1 = @op top(d1, idx1); set_label!(top1, "top1")
+
+    graph = DispatchGraph(top1)
+    return graph, top1
+end
+
+
+@testset "Dispatch graph generation (mixed nodes)" begin
+    graph, top_node = example_of_dispatch_graph_w_mixed_nodes()
+    @test graph isa DispatchGraph
+    @test get_result_value(graph) == 0
+end
+
+
+@testset "First run (mixed nodes)" begin
+    mktempdir(TMPDIR) do cachedir
+        # Make dispatch graph
+        graph, top_node = example_of_dispatch_graph_w_mixed_nodes()
+        # Get endpoints
+        endpoints = [get_node(graph, top_node)]
+        # Add hash cache and update graph
+        updates = add_hash_cache!(graph, endpoints,
+                                  compression=COMPRESSION,
+                                  cachedir=cachedir)
+
+        # Test that all nodes have been wrapped (EXEC-STORE)
+        for i in length(graph.nodes)
+            node = graph.nodes[i]
+            node isa Op && @test occursin(REGEX_EXEC_STORE, string(node.func))
+        end
+
+        # Run the task graph
+        @test get_result_value(graph) == 0
+
+        # The other checks are omitted
+        # ...
+    end
+end
+
+
+@testset "Second run" begin
+    mktempdir(TMPDIR) do cachedir
+        # Make dispatch graph
+        graph, top_node = example_of_dispatch_graph_w_mixed_nodes()
+        # Get endpoints
+        endpoints = [get_node(graph, top_node)]
+        # Make a first run (generate cache, do not modify graph)
+        result = run!(EXECUTOR, graph, endpoints,
+                      compression=COMPRESSION,
+                      cachedir=cachedir)
+        @test fetch(result[1].result.value) == 0
+
+        # Add hash cache and update graph
+        updates = add_hash_cache!(graph, endpoints,
+                                  compression=COMPRESSION,
+                                  cachedir=cachedir)
+
+        # Test that all nodes have been wrapped (LOAD)
+        for i in length(graph.nodes)
+            node = graph.nodes[i]
+            node isa Op && @test occursin(REGEX_LOAD, string(node.func))
+        end
+
+        # Make a second run
+        @test get_result_value(graph) == 0
     end
 end
