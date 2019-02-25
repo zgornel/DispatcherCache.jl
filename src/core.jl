@@ -16,12 +16,12 @@ or alternatively re-run and store the outputs of nodes which have new state.
 # Arguments
   * `exec::Executor` the `Dispatcher.jl` executor
   * `graph::DispatchGraph` input dispatch graph
-  * `endpoints::Vector{Union{DispatchNode, AbstractString}}` leaf nodes for which
-caching will occur; nodes that depend on these will not be cached. The nodes
-can be specified either by label of by the node object itself
-  * uncacheable::Vector{Union{DispatchNode, AbstractString}}` nodes that will
-never be cached and will always be executed (these nodes are still hashed and
-their hashes influence upstream node hashes as well)
+  * `endpoints::AbstractVector` leaf nodes for which caching will occur;
+nodes that depend on these will not be cached. The nodes can be specified
+either by label of by the node object itself
+  * uncacheable::AbstractVector` nodes that will never be cached and
+will always be executed (these nodes are still hashed and their hashes
+influence upstream node hashes as well)
 
 # Keyword arguments
   * `compression::String` enables compression of the node outputs.
@@ -115,12 +115,12 @@ outputs of the nodes in the subgraph whose leaf nodes are given by
 # Arguments
   * `exec::Executor` the `Dispatcher.jl` executor
   * `graph::DispatchGraph` input dispatch graph
-  * `endpoints::Vector{Union{DispatchNode, AbstractString}}` leaf nodes for which
-caching will occur; nodes that depend on these will not be cached. The nodes
-can be specified either by label of by the node object itself
-  * uncacheable::Vector{Union{DispatchNode, AbstractString}}` nodes that will
-never be cached and will always be executed (these nodes are still hashed and
-their hashes influence upstream node hashes as well)
+  * `endpoints::AbstractVector` leaf nodes for which caching will occur;
+nodes that depend on these will not be cached. The nodes can be specified
+either by label of by the node object itself
+  * `uncacheable::AbstractVector` nodes that will never be cached and will
+always be executed (these nodes are still hashed and their hashes influence
+upstream node hashes as well)
 
 # Keyword arguments
   * `compression::String` enables compression of the node outputs.
