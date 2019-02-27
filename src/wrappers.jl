@@ -28,7 +28,8 @@ function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
         end
         filepath = joinpath(_cachedir, nodehash * extension)
         decompressor = get_compressor(compression, "decompress")
-        @debug "[$nodehash][$(node.label)] $operation (compression=$compression)"
+        label = _labelize(node, nodehash)
+        @debug "[$nodehash][$(label)] $operation (compression=$compression)"
         if isfile(filepath)
             result = open(decompressor, filepath, "r") do fid
                         deserialize(fid)
