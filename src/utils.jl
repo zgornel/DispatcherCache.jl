@@ -33,7 +33,7 @@ it is created.
 """
 function load_hashchain(cachedir::String=DEFAULT_CACHE_DIR;
                         compression::String=DEFAULT_COMPRESSION)
-    cachedir = abspath(cachedir)
+    cachedir = abspath(expanduser(cachedir))
     file = joinpath(cachedir, DEFAULT_HASHCHAIN_FILENAME)
     cachedir_outputs = joinpath(cachedir, DEFAULT_HASHCACHE_DIR)
     if !ispath(cachedir_outputs)
@@ -81,7 +81,7 @@ function store_hashchain(hashchain::Dict{String, Any},
                          cachedir::String=DEFAULT_CACHE_DIR;
                          compression::String=DEFAULT_COMPRESSION,
                          version::Int=1)
-    cachedir = abspath(cachedir)
+    cachedir = abspath(expanduser(cachedir))
     if !ispath(cachedir)
         @debug "Creating the cache directory..."
         mkpath(cachedir)

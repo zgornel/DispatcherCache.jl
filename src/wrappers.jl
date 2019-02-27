@@ -18,7 +18,7 @@ function wrap_to_load!(updates::Dict{DispatchNode, DispatchNode},
     Simple load wrapper.
     """
     function loading_wrapper()
-        _cachedir = abspath(joinpath(cachedir, DEFAULT_HASHCACHE_DIR))
+        _cachedir = abspath(joinpath(expanduser(cachedir), DEFAULT_HASHCACHE_DIR))
         if compression != "none"
             extension = ".$compression"
             operation = "LOAD-UNCOMPRESS"
@@ -72,7 +72,7 @@ function wrap_to_store!(updates::Dict{DispatchNode, DispatchNode},
     Simple exec-store wrapper.
     """
     function exec_store_wrapper(args...; kwargs...)
-        _cachedir = abspath(joinpath(cachedir, DEFAULT_HASHCACHE_DIR))
+        _cachedir = abspath(joinpath(expanduser(cachedir), DEFAULT_HASHCACHE_DIR))
         if compression != "none" && !skipcache
             operation = "EXEC-STORE-COMPRESS"
         elseif compression == "none" && !skipcache
